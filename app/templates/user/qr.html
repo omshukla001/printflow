@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}My QR Code - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="qr-display">
+    <img src="{{ url_for('user.qr_image') }}" alt="Your QR Code">
+    <div class="qr-name">{{ current_user.full_name }}</div>
+    <div class="qr-instruction">Show this QR code to the admin to prioritize your print jobs</div>
+</div>
+{% endblock %}

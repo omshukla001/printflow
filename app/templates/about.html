@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}About - PrintFlow{% endblock %}
+
+{% block content %}
+<div style="padding: 20px 0;">
+    <div style="text-align:center; margin-bottom:36px; animation: fadeInUp 0.5s ease;">
+        <div style="font-size:40px; font-weight:800; letter-spacing:-1px; background:linear-gradient(135deg, #2563eb, #6366f1); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:6px;">PrintFlow</div>
+        <div style="color:var(--gray-400); font-size:14px; text-transform:uppercase; letter-spacing:2px; font-weight:600;">Smart Printing Made Simple</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--gray-400); margin-bottom:14px; font-weight:700;">Built By</div>
+        <div style="font-size:20px; font-weight:800; color:var(--gray-800); margin-bottom:6px; letter-spacing:-0.3px;">Om Shukla</div>
+        <div style="font-size:20px; font-weight:800; color:var(--gray-800); letter-spacing:-0.3px;">Avinav Gupta</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--gray-400); margin-bottom:14px; font-weight:700;">Special Thanks</div>
+        <div style="margin-bottom:18px;">
+            <div style="font-size:18px; font-weight:700; color:var(--gray-800);">Mr. Girish Babu</div>
+            <div style="color:var(--gray-400); font-size:13px; margin-top:2px;">For mentoring and guidance</div>
+        </div>
+        <div>
+            <div style="font-size:18px; font-weight:700; color:var(--gray-800);">Mahalaxmi</div>
+            <div style="color:var(--gray-400); font-size:13px; margin-top:2px;">For providing the printer for building this project</div>
+        </div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--gray-400); margin-bottom:14px; font-weight:700;">Powered By</div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px;">
+            <span style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:600; color:var(--gray-600);">Raspberry Pi 4</span>
+            <span style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:600; color:var(--gray-600);">Python</span>
+            <span style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:600; color:var(--gray-600);">Flask</span>
+            <span style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:600; color:var(--gray-600);">CUPS</span>
+            <span style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:600; color:var(--gray-600);">QR Tech</span>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top:28px;">
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('auth.index') }}" class="btn btn-primary btn-sm">Back to Dashboard</a>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm">Back to Login</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

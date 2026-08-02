@@ -1,0 +1,23 @@
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+
+# Local virtualenvs — never ship these, they hold Pi-native binaries
+venv/
+.venv/
+.venv-run/
+
+# Per-instance data; the container uses the mounted DATA_DIR volume instead
+instance/
+uploads/
+*.db
+
+# Agent runs natively on the Pi, not in this image
+print_agent/
+
+.claude/
+.vscode/
+.idea/
+*.log

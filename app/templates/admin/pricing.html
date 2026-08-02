@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Pricing - PrintFlow{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">Pricing Management</h2>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Paper</th>
+                        <th>Mode</th>
+                        <th>Single side (₹)</th>
+                        <th>Both sides (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.paper_size }}</td>
+                        <td>{{ 'B&W' if entry.color_mode == 'bw' else 'Colour' }}</td>
+                        <td>
+                            <input type="number" name="price_{{ entry.id }}" value="{{ entry.price_per_page }}"
+                                   step="0.5" min="0" style="width:100px; padding:6px 8px; border:1px solid var(--gray-300); border-radius:4px;">
+                        </td>
+                        <td>
+                            <input type="number" name="duplex_{{ entry.id }}"
+                                   value="{{ entry.duplex_price_per_page if entry.duplex_price_per_page is not none else entry.price_per_page }}"
+                                   step="0.5" min="0" style="width:100px; padding:6px 8px; border:1px solid var(--gray-300); border-radius:4px;">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-sm text-muted mt-8">
+            Rates are charged <strong>per sheet of paper</strong>. A duplex sheet uses one
+            piece of paper but two sides of toner, so it carries its own rate.
+        </p>
+        {% if not color_enabled %}
+        <div class="notice" style="margin-top:12px;">
+            <span><strong>Colour printing is switched off.</strong>
+            Colour rows are hidden from customers and every job is forced to B&amp;W.
+            Set <code>COLOR_PRINTING_ENABLED=true</code> to re-enable.</span>
+        </div>
+        {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary btn-block mt-16">Save Prices</button>
+</form>
+
+{% if history %}
+<div class="card mt-16">
+    <div class="card-title mb-8">Recent Pricing Changes</div>
+    <div class="table-wrapper">
+        <table>
+            <tr><th>When</th><th>Paper / Mode</th><th>Old</th><th>New</th></tr>
+            {% for h in history %}
+            <tr>
+                <td>{{ h.changed_at.strftime('%d %b %H:%M') }}</td>
+                <td>{{ h.paper_size }} / {{ 'B&W' if h.color_mode == 'bw' else 'Color' }}</td>
+                <td>{% if h.old_price is not none %}₹{{ '%.2f'|format(h.old_price) }}{% else %}—{% endif %}</td>
+                <td>₹{{ '%.2f'|format(h.new_price) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

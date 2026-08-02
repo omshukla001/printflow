@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}My Presets - PrintFlow{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">My Print Presets</h2>
+
+<p class="text-sm text-muted mb-16">
+    Presets are saved automatically when you tick "Save these settings as a preset" while configuring a job.
+    Apply a preset on the configure page to fill in all the options at once.
+</p>
+
+{% if presets %}
+{% for p in presets %}
+<div class="card">
+    <div class="flex-between mb-8">
+        <strong>{{ p.name }}</strong>
+        <form method="POST" action="{{ url_for('user.delete_preset', preset_id=p.id) }}"
+              onsubmit="return confirm('Delete preset \'{{ p.name|e }}\'?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </div>
+    <div class="text-sm text-muted">
+        {{ p.copies }} cop{{ 'ies' if p.copies != 1 else 'y' }} &middot;
+        {{ p.color_mode|upper }} &middot;
+        {{ p.paper_size }} &middot;
+        {{ p.sides }}
+        {% if p.pages_per_sheet > 1 %} &middot; {{ p.pages_per_sheet }}-up{% endif %}
+        {% if p.page_set != 'all' %} &middot; {{ p.page_set }} pages{% endif %}
+        {% if p.output_order == 'reverse' %} &middot; reverse{% endif %}
+        {% if p.orientation != 'auto' %} &middot; {{ p.orientation }}{% endif %}
+        {% if p.print_quality != 'normal' %} &middot; {{ p.print_quality }} quality{% endif %}
+        {% if p.fit_to_page %} &middot; fit-to-page{% endif %}
+        {% if not p.collate %} &middot; uncollated{% endif %}
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-text">No presets yet</div>
+    <p class="text-muted mt-8">Save your first one while configuring a print job.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - PrintFlow{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">Dashboard</h2>
+
+{% if alerts %}
+<div class="card" style="border-left:4px solid {{ '#dc2626' if alerts|selectattr('severity', 'equalto', 'critical')|list else '#f59e0b' }};">
+    <div class="flex-between mb-8">
+        <div class="card-title" style="margin:0;">Needs attention ({{ alerts|length }})</div>
+        <a href="{{ url_for('admin.stock_page') }}" class="text-sm">View all</a>
+    </div>
+    {% for a in alerts[:5] %}
+    <div style="padding:6px 0;">
+        <strong style="color:{{ '#991b1b' if a.severity == 'critical' else '#92400e' }};">{{ a.title }}</strong>
+        {% if a.message %}<div class="text-sm text-muted">{{ a.message }}</div>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">₹{{ '%.0f'|format(revenue_today) }}</div>
+        <div class="stat-label">Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹{{ '%.0f'|format(revenue_week) }}</div>
+        <div class="stat-label">This Week</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹{{ '%.0f'|format(revenue_month) }}</div>
+        <div class="stat-label">This Month</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹{{ '%.0f'|format(revenue_total) }}</div>
+        <div class="stat-label">Total</div>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--warning);">{{ pending_count }}</div>
+        <div class="stat-label">Pending Jobs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--gray-600);">{{ total_jobs }}</div>
+        <div class="stat-label">Total Jobs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--info);">{{ total_users }}</div>
+        <div class="stat-label">Users</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: {{ 'var(--success)' if printer.online else 'var(--danger)' }};">
+            {{ printer.status }}
+        </div>
+        <div class="stat-label">Printer</div>
+    </div>
+</div>
+
+{% if costs_today %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ costs_today.sheets }}</div>
+        <div class="stat-label">Sheets Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--gray-600);">₹{{ '%.2f'|format(costs_today.cost) }}</div>
+        <div class="stat-label">Cost Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: {{ 'var(--success)' if costs_today.margin >= 0 else 'var(--danger)' }};">
+            ₹{{ '%.2f'|format(costs_today.margin) }}
+        </div>
+        <div class="stat-label">Margin Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--info);">₹{{ '%.3f'|format(costs_today.cost_per_sheet) }}</div>
+        <div class="stat-label">Cost / Sheet</div>
+    </div>
+</div>
+{% endif %}
+
+{% if stuck_count > 0 %}
+<div class="card" style="border: 1px solid var(--danger);">
+    <div class="card-title mb-8" style="color: var(--danger);">
+        {{ stuck_count }} stuck job{{ 's' if stuck_count != 1 }}
+    </div>
+    <p class="text-sm text-muted mb-12">Jobs that have been in printing/ready_to_print for longer than the configured timeout.</p>
+    <form method="POST" action="{{ url_for('admin.reset_stuck') }}"
+          onsubmit="return confirm('Force-fail all stuck jobs and refund their users?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-sm">Reset Stuck Jobs</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-title mb-8">Quick Actions</div>
+    <div class="flex gap-8" style="flex-wrap: wrap;">
+        <a href="{{ url_for('admin.queue') }}" class="btn btn-primary btn-sm">View Queue</a>
+        <a href="{{ url_for('admin.scan') }}" class="btn btn-warning btn-sm">Scan QR</a>
+        <a href="{{ url_for('admin.direct_print') }}" class="btn btn-success btn-sm">Direct Print</a>
+        <a href="{{ url_for('admin.users') }}" class="btn btn-outline-primary btn-sm">Users</a>
+        <a href="{{ url_for('admin.stock_page') }}" class="btn btn-outline-primary btn-sm">Stock &amp; Costs</a>
+        <a href="{{ url_for('admin.kiosks') }}" class="btn btn-outline-primary btn-sm">Kiosks</a>
+        <a href="{{ url_for('admin.offers_page') }}" class="btn btn-outline-primary btn-sm">Offers &amp; Referrals</a>
+        <a href="{{ url_for('admin.ads') }}" class="btn btn-outline-primary btn-sm">Manage Ads</a>
+        <a href="{{ url_for('admin.audit_log') }}" class="btn btn-outline-primary btn-sm">Audit Log</a>
+        <form method="POST" action="{{ url_for('admin.reset_kiosk_route') }}" style="display:inline;"
+              onsubmit="return confirm('Rotate the kiosk QR token now?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Rotate Kiosk Token</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title mb-8">Print Lock</div>
+    <p class="text-sm text-muted mb-12">
+        When enabled, users must enter a code to submit print jobs. Kiosk scans are also blocked.
+    </p>
+    {% if print_lock_enabled %}
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <span style="color: var(--danger); font-weight: 600;">Locked</span>
+        <span class="text-sm text-muted">— code is hashed at rest. Share it with users manually.</span>
+    </div>
+    <div class="flex gap-8" style="flex-wrap: wrap;">
+        <form method="POST" action="{{ url_for('admin.print_lock') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="disable">
+            <button type="submit" class="btn btn-success btn-sm">Unlock Printing</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.print_lock') }}" style="display:inline-flex; align-items:center; gap:6px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="update_password">
+            <input type="text" name="lock_password" placeholder="New code" autocomplete="off"
+                   style="width: 120px; padding: 6px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px;">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Update Code</button>
+        </form>
+    </div>
+    {% else %}
+    <form method="POST" action="{{ url_for('admin.print_lock') }}" style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="enable">
+        <input type="text" name="lock_password" placeholder="Set print code" required autocomplete="off"
+               style="width: 140px; padding: 6px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px;">
+        <button type="submit" class="btn btn-danger btn-sm">Enable Lock</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

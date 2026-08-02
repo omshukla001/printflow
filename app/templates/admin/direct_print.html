@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Direct Print - PrintFlow{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">Direct Print</h2>
+<p class="text-sm text-muted mb-16">Upload and print immediately — skips the queue.</p>
+
+<form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group mb-16">
+        <label>File</label>
+        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt" required
+               style="padding:10px; border:1px solid var(--gray-300); border-radius:var(--radius); width:100%;">
+    </div>
+
+    <div class="print-options">
+        <div class="form-group">
+            <label>Copies</label>
+            <input type="number" name="copies" value="1" min="1" max="100">
+        </div>
+        <div class="form-group">
+            <label>Color</label>
+            <select name="color_mode">
+                <option value="bw">B&W</option>
+                <option value="color">Color</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Paper</label>
+            <select name="paper_size">
+                <option value="A4">A4</option>
+                <option value="A3">A3</option>
+                <option value="Letter">Letter</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Sides</label>
+            <select name="sides">
+                <option value="one-sided">One-sided</option>
+                <option value="two-sided">Two-sided</option>
+            </select>
+        </div>
+    </div>
+
+    <details style="margin-top: 12px;">
+        <summary style="cursor:pointer; font-weight: 600;">Advanced options</summary>
+        <div class="form-group mt-8">
+            <label>Pages (e.g. 1-3,5,7-9; blank = all)</label>
+            <input type="text" name="page_ranges" placeholder="all" autocomplete="off">
+        </div>
+        <div class="print-options mt-8">
+            <div class="form-group">
+                <label>Pages per sheet</label>
+                <select name="pages_per_sheet">
+                    <option value="1">1</option>
+                    <option value="2">2-up</option>
+                    <option value="4">4-up</option>
+                    <option value="6">6-up</option>
+                    <option value="9">9-up</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Page set</label>
+                <select name="page_set">
+                    <option value="all">All</option>
+                    <option value="odd">Odd</option>
+                    <option value="even">Even</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Order</label>
+                <select name="output_order">
+                    <option value="normal">Normal</option>
+                    <option value="reverse">Reverse</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Orientation</label>
+                <select name="orientation">
+                    <option value="auto">Auto</option>
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Quality</label>
+                <select name="print_quality">
+                    <option value="normal">Normal</option>
+                    <option value="draft">Draft</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex gap-16 mt-8" style="flex-wrap: wrap;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+                <input type="checkbox" name="fit_to_page" value="1"> Fit to page
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+                <input type="checkbox" name="collate" value="on" checked> Collate copies
+            </label>
+        </div>
+    </details>
+
+    <button type="submit" class="btn btn-success btn-block mt-16">Print Now</button>
+</form>
+{% endblock %}

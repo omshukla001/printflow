@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Scan QR - PrintFlow{% endblock %}
+
+{% block head %}
+<script src="{{ url_for('static', filename='lib/html5-qrcode.min.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">Scan QR Code</h2>
+
+<div class="card text-center" id="scanner-prompt">
+    <p class="text-muted mb-8">Scan the QR code on the kiosk display to print your documents instantly.</p>
+    <button id="start-scanner-btn" class="btn btn-primary btn-block">
+        <span style="font-size:20px; margin-right:6px;">&#9635;</span> Open Scanner
+    </button>
+</div>
+
+<div id="user-scanner-container" style="display:none; margin-bottom:16px;"></div>
+
+<div id="scanner-controls" style="display:none; text-align:center; margin-bottom:16px;">
+    <button id="stop-scanner-btn" class="btn btn-danger btn-sm">Close Scanner</button>
+</div>
+
+<div id="scan-status" class="scan-result hidden"></div>
+
+<div class="card mt-16">
+    <div class="card-title mb-8">How it works</div>
+    <ol style="padding-left:20px; font-size:14px; color:var(--gray-600); line-height:1.8;">
+        <li>Upload your document first</li>
+        <li>Tap <strong>Open Scanner</strong> above</li>
+        <li>Point your camera at the kiosk QR code</li>
+        <li>Your documents will be sent to print automatically</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const container = document.getElementById('user-scanner-container');
+    const startBtn = document.getElementById('start-scanner-btn');
+    const stopBtn = document.getElementById('stop-scanner-btn');
+    const controls = document.getElementById('scanner-controls');
+    const prompt = document.getElementById('scanner-prompt');
+    const statusDiv = document.getElementById('scan-status');
+
+    let scanner = null;
+
+    startBtn.addEventListener('click', function() {
+        prompt.style.display = 'none';
+        container.style.display = 'block';
+        controls.style.display = 'block';
+
+        if (typeof Html5Qrcode === 'undefined') {
+            container.innerHTML = '<p class="text-muted text-center">Scanner library not loaded.</p>';
+            return;
+        }
+
+        scanner = new Html5Qrcode('user-scanner-container');
+        scanner.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            onScanSuccess,
+            function() {} // ignore failures
+        ).catch(function(err) {
+            container.innerHTML = '<p class="text-muted text-center">Camera not available. Please allow camera access and try again.</p>';
+            console.error('Scanner error:', err);
+        });
+    });
+
+    stopBtn.addEventListener('click', closeScanner);
+
+    function closeScanner() {
+        if (scanner) {
+            scanner.stop().then(function() {
+                container.innerHTML = '';
+                container.style.display = 'none';
+                controls.style.display = 'none';
+                prompt.style.display = 'block';
+                scanner = null;
+            }).catch(function() {
+                container.style.display = 'none';
+                controls.style.display = 'none';
+                prompt.style.display = 'block';
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText) {
+        if (scanner) {
+            scanner.stop().catch(function() {});
+        }
+
+        // If it's a URL (kiosk QR), navigate to it
+        if (decodedText.startsWith('http')) {
+            statusDiv.textContent = 'QR scanned! Redirecting...';
+            statusDiv.className = 'scan-result success';
+            statusDiv.classList.remove('hidden');
+            setTimeout(function() {
+                window.location.href = decodedText;
+            }, 500);
+        } else {
+            statusDiv.textContent = 'Scanned: ' + decodedText;
+            statusDiv.className = 'scan-result info';
+            statusDiv.classList.remove('hidden');
+            setTimeout(function() {
+                container.innerHTML = '';
+                container.style.display = 'none';
+                controls.style.display = 'none';
+                prompt.style.display = 'block';
+                scanner = null;
+            }, 2000);
+        }
+    }
+})();
+</script>
+{% endblock %}

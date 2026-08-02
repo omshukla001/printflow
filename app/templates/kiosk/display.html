@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintFlow — Scan to Print</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== Single layout: QR left + credits & ads right ===== */
+        .kiosk-main {
+            display: flex;
+            height: 100vh;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .kiosk-title {
+            font-size: 40px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .kiosk-subtitle {
+            font-size: 18px;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        .qr-wrapper {
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            display: inline-block;
+            box-shadow: 0 0 60px rgba(59, 130, 246, 0.3);
+            animation: pulse 3s ease-in-out infinite;
+        }
+        .qr-wrapper img {
+            display: block;
+            width: 280px;
+            height: 280px;
+        }
+        .kiosk-instruction {
+            font-size: 18px;
+            margin-top: 24px;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+        .kiosk-instruction .highlight {
+            color: #3b82f6;
+            font-weight: 700;
+        }
+
+        /* Left side: QR */
+        .kiosk-left {
+            flex: 0 0 45%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        /* Queue status badge */
+        .queue-badge {
+            margin-top: 20px;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .queue-badge.has-jobs {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+        }
+        .queue-badge.no-jobs {
+            background: rgba(100, 116, 139, 0.1);
+            border: 1px solid rgba(100, 116, 139, 0.2);
+            color: #64748b;
+        }
+
+        /* Right side: Slideshow area */
+        .kiosk-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 48px;
+            border-left: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Each slide takes full right panel */
+        .slide {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 48px;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            pointer-events: none;
+        }
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Slide: Builders */
+        .slide-label {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #64748b;
+            margin-bottom: 24px;
+            font-weight: 600;
+        }
+        .slide-builders {
+            font-size: 42px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.3;
+            text-align: center;
+        }
+
+        /* Slide: Mentor */
+        .slide-person-name {
+            font-size: 36px;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .slide-person-role {
+            font-size: 18px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Slide: Ad */
+        .slide-ad {
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+        }
+        .slide-ad-image {
+            max-width: 100%;
+            max-height: 320px;
+            border-radius: 16px;
+            object-fit: contain;
+            margin-bottom: 20px;
+        }
+        .slide-ad-video {
+            max-width: 100%;
+            max-height: 340px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            background: #000;
+        }
+        /* Embedded HTML / web pages get the whole panel — they bring their own
+           layout, so the surrounding chrome would only fight with it. */
+        .slide-ad-frame {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 16px;
+            background: white;
+        }
+        .slide.slide-embed { padding: 24px; }
+        .slide-embed .slide-ad { width: 100%; height: 100%; max-width: none; display: flex; flex-direction: column; }
+        .slide-embed .slide-ad-frame-wrap { flex: 1; min-height: 0; }
+        .slide-ad-pagenum {
+            font-size: 13px;
+            color: #475569;
+            margin-top: 10px;
+        }
+        .slide-ad-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 8px;
+        }
+        .slide-ad-content {
+            font-size: 17px;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+        .slide-ad-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #475569;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        /* Slide: How to Use */
+        .slide-howto {
+            width: 100%;
+            max-width: 440px;
+        }
+        .howto-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .howto-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .howto-num {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 800;
+            color: white;
+        }
+        .howto-text {
+            padding-top: 6px;
+        }
+        .howto-text-main {
+            font-size: 19px;
+            font-weight: 600;
+            color: #e2e8f0;
+            line-height: 1.3;
+        }
+        .howto-text-sub {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 3px;
+        }
+        .howto-url {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 8px;
+            padding: 4px 10px;
+            color: #60a5fa;
+            font-size: 16px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        /* Progress dots */
+        .slide-dots {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+        .slide-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #334155;
+            transition: background 0.3s ease;
+        }
+        .slide-dot.active {
+            background: #3b82f6;
+        }
+
+        /* ===== Success overlay ===== */
+        .scan-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.92);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn 0.3s ease;
+        }
+        .scan-overlay.show { display: flex; }
+        .scan-overlay-inner { text-align: center; animation: scaleIn 0.4s ease; }
+        .scan-overlay .checkmark { font-size: 100px; margin-bottom: 16px; }
+        .scan-overlay .scan-name { font-size: 42px; font-weight: 700; color: #4ade80; margin-bottom: 8px; }
+        .scan-overlay .scan-info { font-size: 24px; color: #94a3b8; }
+        .scan-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
+
+        /* Printing banner */
+        .printing-banner {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 14px 24px;
+            font-size: 18px;
+            font-weight: 600;
+            z-index: 50;
+            text-align: center;
+            animation: slideDown 0.4s ease;
+        }
+        .printing-banner.show { display: block; }
+        .printing-banner .printing-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: white;
+            margin-right: 10px;
+            animation: blink 1s ease-in-out infinite;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Lock banner */
+        .lock-banner {
+            display: none; position: fixed; top: 16px; right: 16px;
+            background: rgba(239, 68, 68, 0.9); color: white;
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; z-index: 50;
+        }
+        .lock-banner.show { display: block; }
+
+        .footer {
+            position: fixed; bottom: 16px; left: 50%;
+            transform: translateX(-50%);
+            color: #334155; font-size: 13px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.2); }
+            50% { box-shadow: 0 0 80px rgba(59, 130, 246, 0.4); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Responsive fallback for smaller screens */
+        @media (max-width: 900px) {
+            .kiosk-main { flex-direction: column; }
+            .kiosk-left { flex: 0 0 auto; padding: 20px; }
+            .qr-wrapper img { width: 180px; height: 180px; }
+            .kiosk-right { border-left: none; border-top: 1px solid rgba(255,255,255,0.06); padding: 20px; }
+            .credits-builders { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="printing-banner" id="printing-banner"></div>
+    <div class="lock-banner" id="lock-banner">Printing Locked</div>
+
+    <!-- Single layout: QR left + credits & ads right (always visible) -->
+    <div class="kiosk-main">
+        <div class="kiosk-left">
+            <div class="kiosk-title">PrintFlow</div>
+            <div class="kiosk-subtitle">Scan to print your documents</div>
+            <div class="qr-wrapper">
+                <img id="qr-img" src="/kiosk/qr.png" alt="Scan this QR code">
+            </div>
+            <div class="kiosk-instruction">
+                Open your <span class="highlight">phone camera</span> and scan
+            </div>
+            <div class="queue-badge no-jobs" id="queue-badge">No jobs in queue</div>
+        </div>
+        <div class="kiosk-right" id="kiosk-right">
+            <!-- Slide 1: Builders -->
+            <div class="slide active" data-slide="builders">
+                <div class="slide-label">A Project By</div>
+                <div class="slide-builders">Om Shukla &<br>Avinav Gupta</div>
+            </div>
+
+            <!-- Slide 2: Mentor -->
+            <div class="slide" data-slide="mentor">
+                <div class="slide-label">Under the Guidance of</div>
+                <div class="slide-person-name">Mr. Girish Babu</div>
+                <div class="slide-person-role">Mentor</div>
+            </div>
+
+            <!-- Slide 3: Thanks -->
+            <div class="slide" data-slide="thanks">
+                <div class="slide-label">Special Thanks</div>
+                <div class="slide-person-name">Prof. Mahalaxmi</div>
+                <div class="slide-person-role">Provided the Printer</div>
+            </div>
+
+            <!-- Slide 4: How to Use -->
+            <div class="slide" data-slide="howto">
+                <div class="slide-label">How to Print</div>
+                <div class="slide-howto">
+                    <div class="howto-steps">
+                        <div class="howto-step">
+                            <div class="howto-num">1</div>
+                            <div class="howto-text">
+                                <div class="howto-text-main">Open the website on your phone</div>
+                                <div class="howto-url">{{ site_url }}</div>
+                            </div>
+                        </div>
+                        <div class="howto-step">
+                            <div class="howto-num">2</div>
+                            <div class="howto-text">
+                                <div class="howto-text-main">Register / Log in</div>
+                                <div class="howto-text-sub">Create an account or sign in</div>
+                            </div>
+                        </div>
+                        <div class="howto-step">
+                            <div class="howto-num">3</div>
+                            <div class="howto-text">
+                                <div class="howto-text-main">Upload your document</div>
+                                <div class="howto-text-sub">PDF, DOCX, images &mdash; pick copies, color, paper size</div>
+                            </div>
+                        </div>
+                        <div class="howto-step">
+                            <div class="howto-num">4</div>
+                            <div class="howto-text">
+                                <div class="howto-text-main">Scan the QR code on this screen</div>
+                                <div class="howto-text-sub">Your document prints automatically!</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ad slides injected dynamically here -->
+            <div id="ad-slides-container"></div>
+
+            <!-- Progress dots -->
+            <div class="slide-dots" id="slide-dots"></div>
+        </div>
+    </div>
+
+    <!-- Success overlay -->
+    <div class="scan-overlay" id="scan-overlay">
+        <div class="scan-overlay-inner">
+            <div class="checkmark">&#10003;</div>
+            <div class="scan-name" id="scan-name"></div>
+            <div class="scan-info" id="scan-info"></div>
+        </div>
+    </div>
+
+    <div class="footer">PrintFlow &mdash; Powered by Raspberry Pi</div>
+
+    <script>
+        const qrImg = document.getElementById('qr-img');
+        const scanOverlay = document.getElementById('scan-overlay');
+        const scanName = document.getElementById('scan-name');
+        const scanInfo = document.getElementById('scan-info');
+        const lockBanner = document.getElementById('lock-banner');
+        const printingBanner = document.getElementById('printing-banner');
+        const queueBadge = document.getElementById('queue-badge');
+        const adSlidesContainer = document.getElementById('ad-slides-container');
+        const slideDots = document.getElementById('slide-dots');
+
+        let polling = true;
+        let currentAds = [];
+        let slideIndex = 0;
+        let slideTimer = null;
+
+        // Fixed slides: builders(8s), mentor(6s), thanks(6s), howto(10s)
+        // Then each ad gets 6s
+        const FIXED_SLIDES = ['builders', 'mentor', 'thanks', 'howto'];
+        const FIXED_DURATIONS = [8000, 6000, 6000, 10000];
+        const AD_DURATION = 6000;
+
+        function getAllSlides() {
+            return document.querySelectorAll('.slide');
+        }
+
+        function getTotalSlideCount() {
+            return FIXED_SLIDES.length + currentAds.length;
+        }
+
+        function getDuration(idx) {
+            if (idx < FIXED_SLIDES.length) return FIXED_DURATIONS[idx];
+            var ad = currentAds[idx - FIXED_SLIDES.length];
+            return (ad && ad.duration ? ad.duration : 6) * 1000;
+        }
+
+        function esc(s) {
+            var d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        function adMediaHtml(ad) {
+            var type = ad.type || (ad.has_image ? 'image' : 'text');
+            var url = ad.media_url || ad.image_url;
+
+            if (type === 'image' && url) {
+                return '<img class="slide-ad-image" src="' + esc(url) + '" alt="">';
+            }
+            if (type === 'video' && url) {
+                // Muted is not optional: browsers block autoplay with sound,
+                // and the kiosk has no speakers anyway.
+                return '<video class="slide-ad-video" src="' + esc(url) + '"' +
+                       ' autoplay muted loop playsinline></video>';
+            }
+            if (type === 'pdf' && ad.pages && ad.pages.length) {
+                return '<img class="slide-ad-image slide-ad-pdf" src="' + esc(ad.pages[0]) + '" alt="">' +
+                       (ad.pages.length > 1
+                            ? '<div class="slide-ad-pagenum">Page <span class="pdf-page-num">1</span>' +
+                              ' of ' + ad.pages.length + '</div>'
+                            : '');
+            }
+            return '';
+        }
+
+        function buildAdSlides(ads) {
+            adSlidesContainer.innerHTML = '';
+            ads.forEach(function(ad) {
+                var type = ad.type || (ad.has_image ? 'image' : 'text');
+                var div = document.createElement('div');
+                div.className = 'slide';
+                div.setAttribute('data-slide', 'ad-' + ad.id);
+                div.setAttribute('data-ad-type', type);
+
+                var html;
+                if (type === 'html' || type === 'url') {
+                    // Sandboxed with no allow-same-origin: the embedded page can
+                    // run its own scripts but cannot reach this document, the
+                    // kiosk token, or anything else on this origin.
+                    div.className += ' slide-embed';
+                    var frame = type === 'html'
+                        ? '<iframe class="slide-ad-frame" sandbox="allow-scripts" srcdoc="' +
+                          esc(ad.html || '') + '"></iframe>'
+                        : '<iframe class="slide-ad-frame" sandbox="allow-scripts allow-popups"' +
+                          ' src="' + esc(ad.link_url || '') + '"></iframe>';
+                    html = '<div class="slide-ad">' +
+                           '<div class="slide-ad-label">' + esc(ad.title) + '</div>' +
+                           '<div class="slide-ad-frame-wrap">' + frame + '</div>' +
+                           '</div>';
+                } else {
+                    html = '<div class="slide-ad">' +
+                           '<div class="slide-ad-label">Sponsored</div>' +
+                           adMediaHtml(ad) +
+                           '<div class="slide-ad-title">' + esc(ad.title) + '</div>' +
+                           (ad.content ? '<div class="slide-ad-content">' + esc(ad.content) + '</div>' : '') +
+                           '</div>';
+                }
+                div.innerHTML = html;
+                adSlidesContainer.appendChild(div);
+            });
+        }
+
+        /* A multi-page PDF flips through its pages while its slide is showing. */
+        var pdfTimer = null;
+        function startPdfPaging(slideEl, ad) {
+            stopPdfPaging();
+            if (!ad || ad.type !== 'pdf' || !ad.pages || ad.pages.length < 2) return;
+            var img = slideEl.querySelector('.slide-ad-pdf');
+            var label = slideEl.querySelector('.pdf-page-num');
+            if (!img) return;
+            var page = 0;
+            var per = Math.max(1500, (ad.duration * 1000) / ad.pages.length);
+            pdfTimer = setInterval(function () {
+                page = (page + 1) % ad.pages.length;
+                img.src = ad.pages[page];
+                if (label) label.textContent = page + 1;
+            }, per);
+        }
+        function stopPdfPaging() {
+            if (pdfTimer) { clearInterval(pdfTimer); pdfTimer = null; }
+        }
+
+        /* Videos should start from the top each time their slide comes round. */
+        function restartMedia(slideEl) {
+            var video = slideEl.querySelector('video');
+            if (video) {
+                try { video.currentTime = 0; video.play(); } catch (e) {}
+            }
+        }
+
+        function buildDots() {
+            var total = getTotalSlideCount();
+            slideDots.innerHTML = '';
+            for (var i = 0; i < total; i++) {
+                var dot = document.createElement('div');
+                dot.className = 'slide-dot' + (i === slideIndex ? ' active' : '');
+                slideDots.appendChild(dot);
+            }
+        }
+
+        function showSlide(idx) {
+            var slides = getAllSlides();
+            var total = slides.length;
+            if (total === 0) return;
+            idx = idx % total;
+            slideIndex = idx;
+            stopPdfPaging();
+            slides.forEach(function(s, i) {
+                if (i === idx) s.classList.add('active');
+                else s.classList.remove('active');
+            });
+
+            var ad = currentAds[idx - FIXED_SLIDES.length];
+            if (ad) {
+                restartMedia(slides[idx]);
+                startPdfPaging(slides[idx], ad);
+            }
+            // Update dots
+            var dots = slideDots.querySelectorAll('.slide-dot');
+            dots.forEach(function(d, i) {
+                if (i === idx) d.classList.add('active');
+                else d.classList.remove('active');
+            });
+        }
+
+        function startSlideshow() {
+            if (slideTimer) clearTimeout(slideTimer);
+            function next() {
+                var total = getTotalSlideCount();
+                if (total === 0) return;
+                slideIndex = (slideIndex + 1) % total;
+                showSlide(slideIndex);
+                slideTimer = setTimeout(next, getDuration(slideIndex));
+            }
+            // Start first slide timer
+            slideTimer = setTimeout(next, getDuration(slideIndex));
+        }
+
+        function adFingerprint(list) {
+            // Includes the fields that change what is drawn, so an edit in the
+            // admin panel reaches the screen without a reload.
+            return (list || []).map(function(a) {
+                return [a.id, a.type, a.duration, a.title, a.content,
+                        a.media_url, a.link_url, (a.pages || []).length,
+                        (a.html || '').length].join('|');
+            }).join('~');
+        }
+
+        function updateAds(ads) {
+            var newIds = adFingerprint(ads);
+            var oldIds = adFingerprint(currentAds);
+            if (newIds === oldIds) return;
+            currentAds = ads || [];
+            buildAdSlides(currentAds);
+            buildDots();
+            // Reset to current slide if still valid
+            var total = getTotalSlideCount();
+            if (slideIndex >= total) slideIndex = 0;
+            showSlide(slideIndex);
+            // Restart timer
+            startSlideshow();
+        }
+
+        function updateQueueBadge(count) {
+            if (count > 0) {
+                queueBadge.textContent = count + ' job' + (count !== 1 ? 's' : '') + ' in queue';
+                queueBadge.className = 'queue-badge has-jobs';
+            } else {
+                queueBadge.textContent = 'No jobs in queue';
+                queueBadge.className = 'queue-badge no-jobs';
+            }
+        }
+
+        function updatePrintingBanner(printing) {
+            if (!printing || printing.length === 0) {
+                printingBanner.classList.remove('show');
+                return;
+            }
+            // Get unique user names
+            var names = [];
+            var seen = {};
+            printing.forEach(function(j) {
+                if (!seen[j.user]) { names.push(j.user); seen[j.user] = true; }
+            });
+            // Names come from user-chosen full_name, so they are inserted as
+            // text, never as markup — otherwise registering under a name
+            // containing a tag would run script on the kiosk screen.
+            printingBanner.innerHTML = '<span class="printing-dot"></span>';
+            printingBanner.appendChild(
+                document.createTextNode(' Printing for ' + names.join(', ')));
+            printingBanner.classList.add('show');
+        }
+
+        function pollStatus() {
+            if (!polling) return;
+            fetch('/kiosk/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.print_locked) lockBanner.classList.add('show');
+                    else lockBanner.classList.remove('show');
+
+                    updateQueueBadge(data.pending_count);
+                    updatePrintingBanner(data.printing || []);
+                    updateAds(data.ads || []);
+
+                    if (data.is_scanned) {
+                        handleScan(data);
+                    } else {
+                        setTimeout(pollStatus, 1500);
+                    }
+                })
+                .catch(() => setTimeout(pollStatus, 2000));
+        }
+
+        function handleScan(data) {
+            polling = false;
+
+            scanName.textContent = data.scanned_by;
+            scanInfo.textContent = data.jobs_prioritized > 0
+                ? 'Printing ' + data.jobs_prioritized + ' job' + (data.jobs_prioritized !== 1 ? 's' : '') + '!'
+                : 'No pending jobs.';
+            scanOverlay.classList.add('show');
+
+            if (data.new_token) {
+                const preload = new Image();
+                preload.onload = function() { qrImg.src = preload.src; };
+                preload.src = '/kiosk/qr/' + data.new_token + '.png?t=' + Date.now();
+            }
+
+            setTimeout(() => {
+                scanOverlay.classList.add('fade-out');
+                fetch('/kiosk/activate', { method: 'POST' }).catch(() => {});
+                setTimeout(() => {
+                    scanOverlay.classList.remove('show', 'fade-out');
+                    polling = true;
+                    pollStatus();
+                }, 500);
+            }, 2500);
+        }
+
+        // Init
+        buildDots();
+        showSlide(0);
+        startSlideshow();
+        pollStatus();
+    </script>
+</body>
+</html>

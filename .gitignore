@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+.venv-run/
+env/
+
+# Per-instance data. `uploads/` holds real customer documents and `instance/`
+# holds the database with accounts and password hashes — neither belongs in a
+# repository. Note that .gitignore does NOT untrack a file that was already
+# committed; use `git rm --cached` for that.
+instance/
+uploads/
+migrations/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets — the kiosk key lives in an env file, never in the repo
+*.env
+!.env.example
+printflow-agent.env
+*.pem
+*.key
+!app/static/**/*.key
+
+# Claude Code per-user settings
+.claude/settings.local.json
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log

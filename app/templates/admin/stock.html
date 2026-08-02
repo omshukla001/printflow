@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Stock &amp; Costs - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Stock &amp; Costs</h2>
+</div>
+
+{% set open_alerts = alerts | selectattr('is_active') | list %}
+{% if open_alerts %}
+<div class="card" style="border-left:4px solid var(--danger);">
+    <div class="card-title mb-8">Needs attention ({{ open_alerts|length }})</div>
+    {% for a in open_alerts %}
+    <div class="flex-between" style="padding:8px 0; border-bottom:1px solid var(--gray-100);">
+        <div>
+            <strong style="color:{{ '#991b1b' if a.severity == 'critical' else '#92400e' }};">{{ a.title }}</strong>
+            {% if a.message %}<div class="text-sm text-muted">{{ a.message }}</div>{% endif %}
+            <div class="text-sm text-muted">since {{ a.created_at.strftime('%d %b %H:%M') if a.created_at }}</div>
+        </div>
+        <form method="POST" action="{{ url_for('admin.dismiss_alert', alert_id=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Dismiss</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Cost of goods -->
+<div class="card">
+    <div class="card-title mb-8">What printing costs us</div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>Period</th><th>Jobs</th><th>Sheets</th><th>Charged</th>
+                    <th>Paper</th><th>Ink</th><th>Cost</th><th>Margin</th><th>Cost / sheet</th></tr>
+            </thead>
+            <tbody>
+            {% for label, s in [('Today', today), ('This month', month), ('All time', overall)] %}
+                <tr>
+                    <td><strong>{{ label }}</strong></td>
+                    <td>{{ s.jobs }}</td>
+                    <td>{{ s.sheets }}</td>
+                    <td>₹{{ '%.2f'|format(s.revenue) }}</td>
+                    <td>₹{{ '%.2f'|format(s.paper_cost) }}</td>
+                    <td>₹{{ '%.2f'|format(s.ink_cost) }}</td>
+                    <td>₹{{ '%.2f'|format(s.cost) }}</td>
+                    <td style="color:{{ '#065f46' if s.margin >= 0 else '#991b1b' }}; font-weight:700;">
+                        ₹{{ '%.2f'|format(s.margin) }}
+                    </td>
+                    <td>₹{{ '%.3f'|format(s.cost_per_sheet) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="text-sm text-muted" style="margin-top:8px;">
+        Cost of goods is stamped on a job when it completes, using the unit costs below at that
+        moment. Changing a unit cost does not rewrite past jobs.
+    </div>
+</div>
+
+<!-- Levels -->
+{% for item in items %}
+<div class="card">
+    <div class="flex-between mb-8">
+        <div>
+            <strong>{{ item.label }}</strong>
+            {% if item.is_out %}
+            <span class="badge badge-failed">Out of stock</span>
+            {% elif item.is_low %}
+            <span class="badge badge-queued">Running low</span>
+            {% else %}
+            <span class="badge badge-completed">In stock</span>
+            {% endif %}
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:22px; font-weight:800;
+                        color:{{ '#991b1b' if item.is_out else ('#92400e' if item.is_low else 'var(--gray-800)') }};">
+                {{ item.quantity }}
+            </div>
+            <div class="text-sm text-muted">{{ item.unit_name }} left</div>
+        </div>
+    </div>
+
+    <div class="text-sm text-muted mb-8">
+        ₹{{ '%.4f'|format(item.unit_cost or 0) }} per {{ item.unit_name[:-1] }} ·
+        warn below {{ item.low_threshold }} ·
+        stock value ₹{{ '%.2f'|format((item.quantity or 0) * (item.unit_cost or 0)) }}
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.restock_item', item_id=item.id) }}" class="mb-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Add</label>
+                <input type="number" name="amount" min="1" placeholder="1" required style="width:100px;">
+            </div>
+            {% if item.kind == 'paper' %}
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">× sheets per pack</label>
+                <input type="number" name="pack_size" min="1" value="500" style="width:120px;">
+            </div>
+            {% endif %}
+            <div class="form-group" style="margin:0; flex:1; min-width:150px;">
+                <label class="text-sm">Note</label>
+                <input type="text" name="note" placeholder="Bought from the stationers">
+            </div>
+            <button type="submit" class="btn btn-success btn-sm">Add stock</button>
+        </div>
+    </form>
+
+    <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+        <form method="POST" action="{{ url_for('admin.adjust_item', item_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex gap-8" style="align-items:flex-end;">
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">Counted</label>
+                    <input type="number" name="counted" min="0" value="{{ item.quantity }}" style="width:110px;">
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary">Correct count</button>
+            </div>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin.stock_settings', item_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+                {% if item.kind == 'toner' %}
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">Cartridge ₹</label>
+                    <input type="number" name="cartridge_cost" step="1" min="0" placeholder="1800" style="width:110px;">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">Yield (pages)</label>
+                    <input type="number" name="cartridge_yield" step="1" min="1" placeholder="1200" style="width:120px;">
+                </div>
+                {% else %}
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">₹ per sheet</label>
+                    <input type="number" name="unit_cost" step="0.0001" min="0"
+                           value="{{ '%.4f'|format(item.unit_cost or 0) }}" style="width:120px;">
+                </div>
+                {% endif %}
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">Warn below</label>
+                    <input type="number" name="low_threshold" min="0" value="{{ item.low_threshold }}"
+                           style="width:110px;">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+    {% if item.kind == 'toner' %}
+    <div class="text-sm text-muted" style="margin-top:6px;">
+        Enter what a cartridge costs and its rated page yield — the per-page figure is worked out
+        from those. Toner counts every printed side, so a duplex sheet uses two pages of it.
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- Track something new -->
+<div class="card">
+    <div class="card-title mb-8">Track another consumable</div>
+    <form method="POST" action="{{ url_for('admin.add_stock_item') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Type</label>
+                <select name="kind">
+                    <option value="paper">Paper</option>
+                    <option value="toner">Toner</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Name</label>
+                <input type="text" name="key" placeholder="A3" required>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Track it</button>
+        </div>
+        <div class="text-sm text-muted" style="margin-top:6px;">
+            Use the paper size for paper (A4, A3, Letter) and the colour mode for toner
+            (bw, color) — that is how jobs are matched to stock.
+        </div>
+    </form>
+</div>
+
+<!-- Movement log -->
+<div class="card">
+    <div class="card-title mb-8">Stock log</div>
+    {% if movements %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>When</th><th>Item</th><th>Change</th><th>Left</th>
+                    <th>Why</th><th>Value</th><th>Who / job</th></tr>
+            </thead>
+            <tbody>
+            {% for m in movements %}
+                <tr>
+                    <td class="text-sm text-muted">{{ m.created_at.strftime('%d %b %H:%M') if m.created_at }}</td>
+                    <td>{{ m.item.label if m.item }}</td>
+                    <td style="font-weight:700; color:{{ '#065f46' if m.change > 0 else '#991b1b' }};">
+                        {{ '+' if m.change > 0 else '' }}{{ m.change }}
+                    </td>
+                    <td>{{ m.balance_after }}</td>
+                    <td><span class="badge badge-queued">{{ m.reason }}</span></td>
+                    <td>₹{{ '%.2f'|format(m.value) }}</td>
+                    <td class="text-sm text-muted">
+                        {% if m.job_id %}job #{{ m.job_id }}{% endif %}
+                        {% if m.actor %}{{ m.actor.username }}{% endif %}
+                        {% if m.note %}<br>{{ m.note }}{% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-sm text-muted">Nothing yet. Add stock above to start the log.</div>
+    {% endif %}
+</div>
+
+<!-- Alert history -->
+<div class="card">
+    <div class="card-title mb-8">Warning history</div>
+    {% if alerts %}
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Raised</th><th>What</th><th>Status</th><th>Lasted</th></tr></thead>
+            <tbody>
+            {% for a in alerts %}
+                <tr>
+                    <td class="text-sm text-muted">{{ a.created_at.strftime('%d %b %H:%M') if a.created_at }}</td>
+                    <td>
+                        <strong>{{ a.title }}</strong>
+                        {% if a.message %}<div class="text-sm text-muted">{{ a.message }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if a.is_active %}
+                        <span class="badge badge-failed">Open</span>
+                        {% else %}
+                        <span class="badge badge-completed">Cleared</span>
+                        {% if a.resolved_note %}<div class="text-sm text-muted">{{ a.resolved_note }}</div>{% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="text-sm text-muted">
+                        {% set d = a.duration_seconds %}
+                        {% if d is not none %}
+                            {% if d < 60 %}{{ d|int }}s
+                            {% elif d < 3600 %}{{ (d // 60)|int }}m
+                            {% else %}{{ (d // 3600)|int }}h {{ ((d % 3600) // 60)|int }}m{% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-sm text-muted">No warnings raised yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

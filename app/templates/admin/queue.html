@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Print Queue - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Print Queue</h2>
+    <div class="flex gap-8">
+        <form method="POST" action="{{ url_for('admin.print_next') }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success btn-sm">Print Next</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.reset_stuck') }}" style="display:inline"
+              onsubmit="return confirm('Force-fail all jobs stuck past timeout?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Reset Stuck</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-8">
+    <span class="text-sm">Printer: <strong>{{ printer.name or 'None' }}</strong> — {{ printer.status }}</span>
+</div>
+
+{% if jobs %}
+<div id="queue-list">
+    {% for job in jobs %}
+    <div class="queue-item" data-job-id="{{ job.id }}">
+        <span class="queue-drag-handle" title="Drag to reorder">⠿</span>
+        <div class="queue-item-info">
+            <div class="queue-item-name">{{ job.filename }}</div>
+            <div class="queue-item-detail">
+                {{ job.user.full_name }} &middot;
+                {{ job.page_count }}p x{{ job.copies }} &middot;
+                {{ job.color_mode|upper }} {{ job.paper_size }} &middot;
+                ₹{{ '%.2f'|format(job.cost) }}
+                {% if job.scanned_at %} &middot; QR scanned{% endif %}
+                {% set est = costs.get(job.id) %}
+                {% if est %}
+                <br><span class="text-sm text-muted">
+                    {{ est.sheets }} sheet{{ '' if est.sheets == 1 else 's' }},
+                    {{ est.impressions }} side{{ '' if est.impressions == 1 else 's' }}
+                    &middot; costs us ₹{{ '%.2f'|format(est.total) }}
+                    (paper ₹{{ '%.2f'|format(est.paper_cost) }} + ink ₹{{ '%.2f'|format(est.ink_cost) }})
+                    &middot; margin
+                    <strong style="color:{{ '#065f46' if (job.cost - est.total) >= 0 else '#991b1b' }};">
+                        ₹{{ '%.2f'|format(job.cost - est.total) }}
+                    </strong>
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+        <div class="job-actions">
+            {% if job.status in ('queued', 'prioritized') %}
+            <form method="POST" action="{{ url_for('admin.print_job', job_id=job.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success btn-sm">Print</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.cancel_job', job_id=job.id) }}" style="display:inline"
+                  onsubmit="return confirm('Cancel {{ job.filename|e }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+            </form>
+            {% elif job.status == 'printing' %}
+            <form method="POST" action="{{ url_for('admin.mark_complete', job_id=job.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success btn-sm">✓ Done</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.cancel_job', job_id=job.id) }}" style="display:inline"
+                  onsubmit="return confirm('Cancel printing job {{ job.filename|e }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">✓</div>
+    <div class="empty-state-text">Queue is empty</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/queue.js') }}"></script>
+<script>
+    // Auto-refresh every 10s
+    setTimeout(() => location.reload(), 10000);
+</script>
+{% endblock %}

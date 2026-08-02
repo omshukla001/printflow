@@ -1,0 +1,61 @@
+# Render Blueprint — create everything with one click via "New > Blueprint".
+#
+# NOTE: `plan: starter` is required. Render's free web services get no
+# persistent disk and sleep when idle; both are fatal here (uploads would be
+# lost, and the agent's polling would be answered by a cold container).
+services:
+  - type: web
+    name: printflow
+    runtime: docker
+    plan: starter
+    region: singapore          # closest to India; move if your shop is elsewhere
+    healthCheckPath: /api/healthz
+
+    disk:
+      name: printflow-data
+      mountPath: /data         # must match DATA_DIR below
+      sizeGB: 5
+
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      # Printing goes through the RPi agent API, never local CUPS.
+      - key: CLOUD_MODE
+        value: "true"
+      - key: FLASK_ENV
+        value: production
+      # Config.validate() refuses to boot in production on the default key.
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Legacy shared kiosk secret. Leave BLANK on a new deployment — kiosks
+      # enroll from the admin UI and receive per-device keys. Set it only to
+      # keep an existing hand-configured Pi working during a migration.
+      - key: AGENT_API_KEY
+        sync: false
+
+      # Your public Render URL, e.g. https://printflow.onrender.com
+      # Used to build the kiosk QR codes, so it must be the address phones hit.
+      - key: SITE_URL
+        sync: false
+
+      # File retention. Defaults already delete a document as soon as the agent
+      # confirms the print, so the 5 GB disk only ever holds in-flight jobs.
+      # Set FILE_RETENTION_MINUTES to e.g. 60 to keep one-click reprint working
+      # for an hour after printing, at the cost of holding the file that long.
+      - key: FILE_RETENTION_MINUTES
+        value: "0"
+      - key: FAILED_FILE_RETENTION_HOURS
+        value: "24"
+      - key: ABANDONED_FILE_HOURS
+        value: "72"
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: printflow-db
+          property: connectionString
+
+databases:
+  - name: printflow-db
+    plan: basic-256mb
+    region: singapore

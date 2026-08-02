@@ -1,0 +1,16 @@
+[Unit]
+Description=PrintFlow Web Printing Service
+After=network.target cups.service
+Wants=cups.service
+
+[Service]
+Type=simple
+User=avin
+WorkingDirectory=/home/avin/printer_project
+Environment=PATH=/home/avin/printer_project/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/avin/printer_project/venv/bin/gunicorn -c gunicorn.conf.py run:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

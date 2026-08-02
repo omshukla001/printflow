@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Upload - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="sec-head" style="margin-top:0;">
+    <h3 style="font-size:20px;">Upload a document</h3>
+</div>
+
+<form method="POST" enctype="multipart/form-data" id="upload-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="dropzone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="dropzone-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="dropzone-title">Tap to choose a file</div>
+        <div class="dropzone-sub">or drag and drop it here</div>
+        <div class="dropzone-types">PDF · PNG · JPG · DOCX · DOC · TXT — up to 50 MB</div>
+    </div>
+    <input type="file" id="file-input" name="file" class="hidden"
+           accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt">
+
+    <div class="flex gap-8 mt-8" style="flex-wrap: wrap;">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="camera-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Take a photo
+        </button>
+    </div>
+    <input type="file" id="camera-input" name="file" class="hidden"
+           accept="image/*" capture="environment">
+
+    <div id="file-info" class="file-picked hidden">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div style="flex:1 1 auto; min-width:0;">
+            <div id="file-name" class="file-picked-name"></div>
+            <div id="file-size" class="file-picked-size"></div>
+        </div>
+    </div>
+
+    <button type="submit" id="upload-btn" class="btn btn-primary btn-block mt-16" disabled>
+        Continue to print settings
+    </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const cameraInput = document.getElementById('camera-input');
+const cameraBtn = document.getElementById('camera-btn');
+const fileInfo = document.getElementById('file-info');
+const fileName = document.getElementById('file-name');
+const fileSize = document.getElementById('file-size');
+const uploadBtn = document.getElementById('upload-btn');
+const form = document.getElementById('upload-form');
+
+const MAX_BYTES = 50 * 1024 * 1024;
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) showFile(fileInput.files[0], fileInput);
+});
+
+cameraBtn.addEventListener('click', () => cameraInput.click());
+cameraInput.addEventListener('change', () => {
+    if (cameraInput.files.length) {
+        // Move file into the real input so the form submission picks it up
+        fileInput.files = cameraInput.files;
+        showFile(cameraInput.files[0], fileInput);
+    }
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag');
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        showFile(e.dataTransfer.files[0], fileInput);
+    }
+});
+
+function showFile(file, sourceInput) {
+    if (file.size > MAX_BYTES) {
+        alert('File too large — max ' + (MAX_BYTES / 1048576).toFixed(0) + 'MB');
+        sourceInput.value = '';
+        uploadBtn.disabled = true;
+        fileInfo.classList.add('hidden');
+        return;
+    }
+    fileName.textContent = file.name;
+    fileSize.textContent = formatSize(file.size);
+    fileInfo.classList.remove('hidden');
+    uploadBtn.disabled = false;
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+form.addEventListener('submit', () => {
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<span class="spinner"></span> Uploading...';
+});
+</script>
+{% endblock %}

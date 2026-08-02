@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}History - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Print History</h2>
+    <a href="{{ url_for('user.presets') }}" class="btn btn-outline-primary btn-sm">My Presets</a>
+</div>
+
+{% if jobs %}
+<div class="job-list">
+    {% for job in jobs %}
+    <div class="job-item">
+        <div class="job-info">
+            <div class="job-filename">{{ job.filename }}</div>
+            <div class="job-meta">
+                {{ job.page_count }}p &middot; x{{ job.copies }} &middot;
+                {{ job.color_mode|upper }} &middot; {{ job.paper_size }}
+                {% if job.page_ranges %} &middot; pages {{ job.page_ranges }}{% endif %}
+                {% if job.pages_per_sheet and job.pages_per_sheet > 1 %} &middot; {{ job.pages_per_sheet }}-up{% endif %}
+                {% if job.cost > 0 %} &middot; ₹{{ '%.2f'|format(job.cost) }}{% endif %}
+                &middot; {{ job.submitted_at.strftime('%d %b %H:%M') if job.submitted_at }}
+                {% if job.discount_amount and job.discount_amount > 0 %}
+                <br><span style="font-size:12px; color:#047857;">
+                    Saved ₹{{ '%.2f'|format(job.discount_amount) }} — {{ job.discount_label }}
+                </span>
+                {% endif %}
+                {% if job.failed_reason %}
+                <br><span class="text-muted" style="font-size:12px;">{{ job.failed_reason }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap: wrap; align-items: center;">
+            <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+            {% if job.status == 'completed' %}
+            <a href="{{ url_for('api.job_receipt', job_id=job.id) }}" class="btn btn-outline-primary btn-sm">Receipt</a>
+            {% endif %}
+            {% if job.status in ('completed', 'failed', 'cancelled') %}
+            <form method="POST" action="{{ url_for('user.reprint', job_id=job.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success btn-sm" title="Reprint with same settings">Reprint</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">📋</div>
+    <div class="empty-state-text">No print history yet</div>
+</div>
+{% endif %}
+{% endblock %}

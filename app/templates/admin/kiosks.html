@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Kiosks - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Kiosks</h2>
+    <span class="text-sm text-muted" id="refresh-note">updating live</span>
+</div>
+
+{% if new_code %}
+{% set live = codes | selectattr('code', 'equalto', new_code) | first %}
+<div class="card" style="border-left:4px solid var(--success);">
+    <div class="card-title mb-8">Set up the new kiosk</div>
+    <p class="text-sm text-muted mb-8">
+        On the new Raspberry Pi, open a terminal and run this. It installs everything,
+        finds the printer, and starts printing — nothing else to configure.
+    </p>
+    <pre style="background:var(--gray-900, #0f172a); color:#e2e8f0; padding:14px; border-radius:var(--radius); overflow-x:auto; font-size:13px;"
+         id="install-cmd">curl -sSL {{ install_url }}/install.sh | sudo bash</pre>
+    <p class="text-sm text-muted mb-8">It will ask for a code. This one:</p>
+    <div class="flex gap-8" style="align-items:center; flex-wrap:wrap;">
+        <code style="font-size:26px; font-weight:800; letter-spacing:3px; padding:10px 18px; background:var(--gray-100); border-radius:var(--radius);">{{ new_code }}</code>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyText('{{ new_code }}', this)">Copy code</button>
+        <button type="button" class="btn btn-outline-primary btn-sm"
+                onclick="copyText(document.getElementById('install-cmd').textContent, this)">Copy command</button>
+    </div>
+    <p class="text-sm text-muted" style="margin-top:8px;">
+        {% if live %}Expires in about {{ (live.seconds_left // 60) + 1 }} minutes.{% endif %}
+        Single use — the Pi trades it for a key of its own, which never leaves that device.
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="flex-between" style="flex-wrap:wrap; gap:8px;">
+        <div>
+            <div class="card-title" style="margin:0;">Add a kiosk</div>
+            <div class="text-sm text-muted">Generates a one-time code for a new Raspberry Pi.</div>
+        </div>
+        <form method="POST" action="{{ url_for('admin.new_kiosk_code') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex gap-8" style="align-items:flex-end;">
+                <div class="form-group" style="margin:0;">
+                    <label class="text-sm">Name (optional)</label>
+                    <input type="text" name="label" placeholder="Counter 2">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Add kiosk</button>
+            </div>
+        </form>
+    </div>
+
+    {% set pending = codes | selectattr('is_usable') | list %}
+    {% if pending %}
+    <div class="text-sm text-muted" style="margin-top:10px;">
+        Waiting to be used:
+        {% for c in pending %}<code>{{ c.code }}</code>{% if c.label %} ({{ c.label }}){% endif %}
+        — {{ (c.seconds_left // 60) + 1 }} min left{% if not loop.last %}; {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div id="kiosk-list">
+    {% for k in kiosks %}
+    <div class="card kiosk-card" data-kiosk="{{ k.id }}">
+        <div class="flex-between mb-8">
+            <div>
+                <strong class="kiosk-name">{{ k.printer_name }}</strong>
+                <span class="badge state-badge state-{{ k.state }}">{{ k.state_label }}</span>
+            </div>
+            <div class="text-sm text-muted kiosk-seen">
+                {% if k.seconds_since is none %}never seen
+                {% elif k.seconds_since < 60 %}{{ k.seconds_since }}s ago
+                {% else %}{{ (k.seconds_since // 60) }}m ago{% endif %}
+            </div>
+        </div>
+
+        <div class="kiosk-facts">
+            <div><span class="fact-label">Kiosk ID</span><code>{{ k.printer_id }}</code></div>
+            <div><span class="fact-label">MAC address</span><code class="fact-mac">{{ k.mac_address }}</code></div>
+            <div><span class="fact-label">IP address</span><code class="fact-ip">{{ k.ip_address }}</code></div>
+            <div><span class="fact-label">Hostname</span><span class="fact-host">{{ k.hostname }}</span></div>
+            <div><span class="fact-label">System</span><span class="fact-platform">{{ k.platform }}</span></div>
+            <div><span class="fact-label">Agent</span><span class="fact-version">v{{ k.agent_version }}</span></div>
+            <div><span class="fact-label">Printer</span><span class="fact-printer">{{ k.printer_status }}</span></div>
+            <div><span class="fact-label">Screen</span>
+                <span class="fact-display">{{ 'Showing' if k.display_up else 'Not responding' }}</span>
+            </div>
+            <div><span class="fact-label">Printed today</span><span class="fact-today">{{ k.printed_today }}</span></div>
+            <div><span class="fact-label">Credential</span>
+                {% if k.enrolled %}
+                <span title="Its own key, issued at enrollment">enrolled · {{ k.key_prefix }}…</span>
+                {% else %}
+                <span title="Using the shared AGENT_API_KEY">shared key</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="kiosk-now">
+            {% if k.printing_now %}
+            <div class="text-sm" style="color:#065f46; font-weight:600; margin-top:8px;">
+                Printing now:
+                {% for j in k.printing_now %}{{ j.filename }} ({{ j.user }}){% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="kiosk-error">
+            {% if k.last_error %}
+            <div class="text-sm" style="color:#991b1b; margin-top:8px;">Last error: {{ k.last_error }}</div>
+            {% endif %}
+        </div>
+
+        <div class="flex gap-8" style="margin-top:10px; flex-wrap:wrap;">
+            {% if k.enrolled %}
+            <form method="POST" action="{{ url_for('admin.revoke_kiosk', agent_id=k.id) }}"
+                  onsubmit="return confirm('Revoke this kiosk\'s key? It stops printing immediately and must be set up again.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-warning btn-sm">Revoke key</button>
+            </form>
+            {% endif %}
+            {% if not k.online %}
+            <form method="POST" action="{{ url_for('admin.forget_kiosk', agent_id=k.id) }}"
+                  onsubmit="return confirm('Remove this kiosk from the list?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm">Forget this kiosk</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-text">
+            No kiosk has checked in yet. Start the print agent on the Pi with
+            <code>SERVER_URL</code> and <code>AGENT_KEY</code> set.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.state-badge { margin-left: 8px; }
+.state-online, .state-idle { background: #d1fae5; color: #065f46; }
+.state-printing { background: #dbeafe; color: #1e40af; }
+.state-error { background: #fee2e2; color: #991b1b; }
+.state-offline { background: var(--gray-100); color: var(--gray-500); }
+.kiosk-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 16px;
+    font-size: 14px;
+}
+.fact-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--gray-400);
+    font-weight: 700;
+}
+.kiosk-facts code { font-size: 13px; }
+</style>
+
+<script>
+function copyText(text, btn) {
+    var done = function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+    };
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy:', text); });
+    } else {
+        window.prompt('Copy:', text);
+    }
+}
+
+(function () {
+    var OFFLINE_AFTER = {{ offline_seconds }};
+
+    function ago(s) {
+        if (s === null || s === undefined) return 'never seen';
+        return s < 60 ? s + 's ago' : Math.floor(s / 60) + 'm ago';
+    }
+
+    function text(card, sel, value) {
+        var el = card.querySelector(sel);
+        if (el) el.textContent = value;
+    }
+
+    function refresh() {
+        fetch('{{ url_for("admin.kiosks_data") }}')
+            .then(function (r) { return r.json(); })
+            .then(function (rows) {
+                var seen = {};
+                rows.forEach(function (k) {
+                    seen[k.id] = true;
+                    var card = document.querySelector('.kiosk-card[data-kiosk="' + k.id + '"]');
+                    if (!card) { window.location.reload(); return; }
+
+                    var badge = card.querySelector('.state-badge');
+                    badge.textContent = k.state_label;
+                    badge.className = 'badge state-badge state-' + k.state;
+
+                    text(card, '.kiosk-name', k.printer_name);
+                    text(card, '.kiosk-seen', ago(k.seconds_since));
+                    text(card, '.fact-mac', k.mac_address);
+                    text(card, '.fact-ip', k.ip_address);
+                    text(card, '.fact-host', k.hostname);
+                    text(card, '.fact-platform', k.platform);
+                    text(card, '.fact-version', 'v' + k.agent_version);
+                    text(card, '.fact-printer', k.printer_status);
+                    text(card, '.fact-display', k.display_up ? 'Showing' : 'Not responding');
+                    text(card, '.fact-today', k.printed_today);
+
+                    var now = card.querySelector('.kiosk-now');
+                    if (k.printing_now.length) {
+                        var names = k.printing_now.map(function (j) {
+                            return j.filename + ' (' + j.user + ')';
+                        }).join(', ');
+                        now.innerHTML = '<div class="text-sm" style="color:#065f46; font-weight:600; margin-top:8px;">Printing now: </div>';
+                        now.firstChild.appendChild(document.createTextNode(names));
+                    } else {
+                        now.innerHTML = '';
+                    }
+
+                    var err = card.querySelector('.kiosk-error');
+                    if (k.last_error) {
+                        err.innerHTML = '<div class="text-sm" style="color:#991b1b; margin-top:8px;"></div>';
+                        err.firstChild.appendChild(document.createTextNode('Last error: ' + k.last_error));
+                    } else {
+                        err.innerHTML = '';
+                    }
+                });
+                // A kiosk appearing or disappearing needs the server-rendered list.
+                var cards = document.querySelectorAll('.kiosk-card');
+                if (cards.length !== rows.length) window.location.reload();
+            })
+            .catch(function () {});
+    }
+
+    setInterval(refresh, 5000);
+    refresh();
+})();
+</script>
+{% endblock %}

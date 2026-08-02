@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Kiosk Slides - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Kiosk Slides</h2>
+</div>
+
+<div class="card">
+    <div class="card-title mb-8">Add a slide</div>
+    <form method="POST" action="{{ url_for('admin.create_ad') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group mb-8">
+            <label for="media_type">Slide type</label>
+            <select name="media_type" id="media_type" onchange="showFields()">
+                <option value="text">Text only</option>
+                <option value="image">Image (PNG, JPG, GIF, WebP)</option>
+                <option value="video">Video (MP4, WebM, OGG)</option>
+                <option value="pdf">PDF (each page becomes a slide)</option>
+                <option value="html">Custom HTML</option>
+                <option value="url">Web page (embedded)</option>
+            </select>
+        </div>
+
+        <div class="form-group mb-8">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" placeholder="Shown above the slide" required>
+        </div>
+
+        <div class="form-group mb-8">
+            <label for="content">Caption <span class="text-muted">(optional)</span></label>
+            <textarea name="content" id="content" rows="2" placeholder="A line of description"
+                      style="padding:10px 12px; border:1px solid var(--gray-300); border-radius:var(--radius); font-size:15px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+
+        <div class="form-group mb-8 field-media" style="display:none;">
+            <label for="media">File</label>
+            <input type="file" id="media" name="media" style="font-size:14px;">
+            <div class="text-sm text-muted" id="media-hint"></div>
+        </div>
+
+        <div class="form-group mb-8 field-html" style="display:none;">
+            <label for="html_content">HTML</label>
+            <textarea name="html_content" id="html_content" rows="8"
+                      placeholder="&lt;h1&gt;Today only&lt;/h1&gt;&lt;p&gt;Half price colour prints&lt;/p&gt;"
+                      style="padding:10px 12px; border:1px solid var(--gray-300); border-radius:var(--radius); font-size:14px; font-family:monospace; resize:vertical;"></textarea>
+            <div class="text-sm text-muted">
+                Runs inside a sandboxed frame on the kiosk — it cannot touch the rest of the screen
+                or the QR code. Full HTML, CSS and JS are allowed inside it.
+            </div>
+        </div>
+
+        <div class="form-group mb-8 field-url" style="display:none;">
+            <label for="link_url">Web page URL</label>
+            <input type="text" id="link_url" name="link_url" placeholder="example.com/promo">
+            <div class="text-sm text-muted">
+                Some sites refuse to be embedded (they send X-Frame-Options). Check it appears on
+                the kiosk after adding.
+            </div>
+        </div>
+
+        <div class="flex gap-8 mb-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm" for="duration_seconds">Seconds on screen</label>
+                <input type="number" id="duration_seconds" name="duration_seconds" min="2" max="120"
+                       value="6" style="width:120px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm" for="display_order">Order</label>
+                <input type="number" id="display_order" name="display_order" value="0"
+                       style="width:100px;">
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">Add slide</button>
+    </form>
+</div>
+
+{% if ads %}
+<div class="section-header mt-16">
+    <h3 class="section-title" style="font-size:16px;">All slides ({{ ads|length }})</h3>
+</div>
+{% for ad in ads %}
+<div class="card">
+    <div class="flex-between mb-8">
+        <div>
+            <strong>{{ ad.title }}</strong>
+            <span class="badge badge-queued" style="margin-left:8px;">{{ ad.effective_type }}</span>
+            <span class="badge {{ 'badge-completed' if ad.is_active else 'badge-cancelled' }}">
+                {{ 'Active' if ad.is_active else 'Inactive' }}
+            </span>
+        </div>
+        <div class="text-sm text-muted">{{ ad.created_at.strftime('%d %b %Y') if ad.created_at }}</div>
+    </div>
+
+    {% if ad.content %}<p class="text-sm text-muted mb-8">{{ ad.content }}</p>{% endif %}
+
+    <div class="mb-8">
+        {% if ad.effective_type == 'image' %}
+        <img src="{{ url_for('api.ad_media', ad_id=ad.id) }}" alt="{{ ad.title }}"
+             style="max-width:220px; max-height:130px; border-radius:var(--radius); object-fit:cover;">
+        {% elif ad.effective_type == 'video' %}
+        <video src="{{ url_for('api.ad_media', ad_id=ad.id) }}" muted controls
+               style="max-width:260px; max-height:150px; border-radius:var(--radius);"></video>
+        {% elif ad.effective_type == 'pdf' %}
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+            {% for page in range(1, (ad.media_pages or 0) + 1) %}
+            {% if page <= 3 %}
+            <img src="{{ url_for('api.ad_media_page', ad_id=ad.id, page=page) }}" alt="page {{ page }}"
+                 style="max-height:110px; border-radius:6px; border:1px solid var(--gray-200);">
+            {% endif %}
+            {% endfor %}
+        </div>
+        <div class="text-sm text-muted">{{ ad.media_pages }} page{{ '' if ad.media_pages == 1 else 's' }}</div>
+        {% elif ad.effective_type == 'html' %}
+        <pre class="text-sm" style="background:var(--gray-50); padding:10px; border-radius:var(--radius); overflow-x:auto; max-height:120px;">{{ ad.html_content[:400] }}</pre>
+        {% elif ad.effective_type == 'url' %}
+        <div class="text-sm"><code>{{ ad.link_url }}</code></div>
+        {% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.update_ad', ad_id=ad.id) }}" class="mb-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">Title</label>
+                <input type="text" name="title" value="{{ ad.title }}">
+            </div>
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">Caption</label>
+                <input type="text" name="content" value="{{ ad.content or '' }}">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Seconds</label>
+                <input type="number" name="duration_seconds" min="2" max="120"
+                       value="{{ ad.duration_seconds or 6 }}" style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Order</label>
+                <input type="number" name="display_order" value="{{ ad.display_order or 0 }}"
+                       style="width:80px;">
+            </div>
+            {% if ad.effective_type == 'url' %}
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">URL</label>
+                <input type="text" name="link_url" value="{{ ad.link_url or '' }}">
+            </div>
+            {% endif %}
+            {% if ad.effective_type == 'html' %}
+            <input type="hidden" name="html_content" value="{{ ad.html_content or '' }}">
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+    </form>
+
+    <div class="flex gap-8">
+        <form method="POST" action="{{ url_for('admin.toggle_ad', ad_id=ad.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm {{ 'btn-warning' if ad.is_active else 'btn-success' }}">
+                {{ 'Deactivate' if ad.is_active else 'Activate' }}
+            </button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.delete_ad', ad_id=ad.id) }}" style="display:inline;"
+              onsubmit="return confirm('Delete this slide?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-text">No slides yet. Add one above.</div>
+</div>
+{% endif %}
+
+<script>
+var HINTS = {
+    image: 'PNG, JPG, GIF or WebP.',
+    video: 'MP4, WebM or OGG. Plays muted on a loop — the kiosk has no speakers.',
+    pdf: 'Every page is rendered to an image and shown in turn (first 20 pages).'
+};
+function showFields() {
+    var kind = document.getElementById('media_type').value;
+    var needsFile = ['image', 'video', 'pdf'].indexOf(kind) !== -1;
+    document.querySelector('.field-media').style.display = needsFile ? '' : 'none';
+    document.querySelector('.field-html').style.display = kind === 'html' ? '' : 'none';
+    document.querySelector('.field-url').style.display = kind === 'url' ? '' : 'none';
+    document.getElementById('media').required = needsFile;
+    document.getElementById('media-hint').textContent = HINTS[kind] || '';
+}
+showFields();
+</script>
+{% endblock %}

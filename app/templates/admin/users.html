@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Users - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Users</h2>
+</div>
+
+<div class="card mb-16">
+    <div class="card-title mb-8">Issue Walk-in Guest Account</div>
+    <p class="text-sm text-muted mb-12">Generates a temporary username/password printable at the counter. Auto-expires.</p>
+    <form method="POST" action="{{ url_for('admin.create_guest') }}" class="flex gap-8" style="flex-wrap: wrap;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="label" placeholder="Optional label" maxlength="60"
+               style="flex: 1; min-width: 140px; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius);">
+        <input type="number" name="hours" value="4" min="1" max="48"
+               style="width: 80px; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius);">
+        <button type="submit" class="btn btn-success btn-sm">Create Guest</button>
+    </form>
+</div>
+
+{% for user in users %}
+<div class="job-item">
+    <div class="job-info">
+        <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" style="text-decoration:none;color:inherit;">
+            <div class="job-filename">
+                {{ user.full_name }}{% if user.is_admin %} (Admin){% endif %}{% if user.is_guest %} (Guest){% endif %}
+            </div>
+            <div class="job-meta">
+                @{{ user.username }} &middot; {{ user.email }}
+                {% if user.balance_owed > 0 %} &middot; Owes ₹{{ '%.2f'|format(user.balance_owed) }}{% endif %}
+                {% if user.locked_until %} &middot; <span style="color:var(--danger);">locked</span>{% endif %}
+            </div>
+        </a>
+    </div>
+    <div class="job-actions">
+        {% if not user.is_admin %}
+        <form method="POST" action="{{ url_for('admin.toggle_user', user_id=user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm {{ 'btn-danger' if user.is_active_user else 'btn-success' }}">
+                {{ 'Deactivate' if user.is_active_user else 'Activate' }}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% if not users %}
+<div class="empty-state">
+    <div class="empty-state-text">No users yet</div>
+</div>
+{% endif %}
+{% endblock %}

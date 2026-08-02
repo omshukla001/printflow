@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="hero-greet" id="greeting">Welcome back</div>
+    <div class="hero-name">{{ current_user.full_name.split()[0] }}</div>
+    <div class="hero-sub">
+        {% if active_jobs %}
+            You have {{ active_jobs|length }} job{{ 's' if active_jobs|length != 1 }} in progress.
+        {% else %}
+            Upload a document and print it in seconds.
+        {% endif %}
+    </div>
+    <div class="hero-actions">
+        <a href="{{ url_for('user.upload') }}" class="hero-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New print
+        </a>
+        <a href="{{ url_for('user.scan') }}" class="hero-btn ghost">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="17" y="17" width="4" height="4"/></svg>
+            Scan QR
+        </a>
+    </div>
+</div>
+
+<div class="balance-strip">
+    <div>
+        <div class="balance-label">Amount due</div>
+        <div class="balance-value {{ 'owing' if current_user.balance_owed > 0 }}">
+            ₹{{ '%.2f'|format(current_user.balance_owed) }}
+        </div>
+    </div>
+    <div style="text-align:right;">
+        <div class="balance-label">Rate</div>
+        <div class="text-sm" style="color:var(--gray-600); font-weight:600;">
+            ₹{{ '%.2f'|format(rate_simplex) }} single · ₹{{ '%.2f'|format(rate_duplex) }} double
+        </div>
+    </div>
+</div>
+
+{% if queue_position %}
+<div class="notice info" style="margin-bottom:16px;">
+    <span>You are <strong>#{{ queue_position }}</strong> in the print queue.</span>
+</div>
+{% endif %}
+
+<div class="sec-head">
+    <h3>Active jobs</h3>
+    <a href="{{ url_for('user.history') }}">View history →</a>
+</div>
+
+{% if active_jobs %}
+<div class="job-list" id="active-jobs">
+    {% for job in active_jobs %}
+    <div class="job-card" data-job-id="{{ job.id }}">
+        <div class="job-thumb">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="job-body">
+            <div class="job-name">{{ job.filename }}</div>
+            <div class="job-meta">
+                {{ job.page_count }}p ·
+                {{ job.copies }} cop{{ 'ies' if job.copies != 1 else 'y' }} ·
+                {{ 'Both sides' if job.sides == 'two-sided' else 'Single side' }} ·
+                {{ job.paper_size }}
+            </div>
+            <div style="margin-top:6px;">
+                <span class="badge badge-{{ job.status }}" data-status>{{ job.status }}</span>
+            </div>
+        </div>
+        <div style="text-align:right; flex:0 0 auto;">
+            {% if job.cost > 0 %}
+            <div class="job-cost">₹{{ '%.2f'|format(job.cost) }}</div>
+            {% endif %}
+            {% if job.status in ('queued', 'prioritized') %}
+            <form method="POST" action="{{ url_for('user.cancel_job', job_id=job.id) }}" style="display:inline"
+                  onsubmit="return confirm('Cancel this job?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm" style="margin-top:6px;">Cancel</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <div class="empty-icon">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    </div>
+    <div class="empty-title">Nothing printing right now</div>
+    <div class="empty-sub">Upload a document to get started.</div>
+    <a href="{{ url_for('user.upload') }}" class="btn btn-primary mt-16">Upload a document</a>
+</div>
+{% endif %}
+
+{% if offers %}
+<div class="card mt-16">
+    <div class="card-title mb-8">{{ offers.settings.offers_headline }}</div>
+
+    {% if offers.vouchers %}
+    <div class="mb-8">
+        {% for v in offers.vouchers %}
+        <div class="flex-between" style="padding:10px 12px; border:1px solid #a7f3d0; background:var(--success-bg); border-radius:var(--radius); margin-bottom:6px;">
+            <div>
+                <div style="font-weight:700; font-size:14px; color:#065f46;">{{ v.discount_percent|round(0)|int }}% OFF</div>
+                <div class="text-sm" style="color:#047857;">{{ v.description }}</div>
+            </div>
+            <div class="text-sm text-muted" style="text-align:right;">
+                {% if v.max_discount %}up to ₹{{ v.max_discount|round(0)|int }}{% endif %}
+                {% if v.expires_at %}<br>till {{ v.expires_at.strftime('%d %b') }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        <div class="text-sm text-muted">Applied automatically on your next print.</div>
+    </div>
+    {% endif %}
+
+    {% if offers.tiers %}
+    <div class="mb-8">
+        <div class="text-sm" style="font-weight:700; margin-bottom:4px;">📄 Bulk printing discounts</div>
+        {% for tier in offers.tiers %}
+        <div class="text-sm text-muted">
+            {{ tier.min_pages }}+ pages → {{ tier.discount_percent|round(0)|int }}% OFF{% if tier.max_discount %} (max ₹{{ tier.max_discount|round(0)|int }}){% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if offers.settings.referral_enabled and (offers.slots_left is none or offers.slots_left > 0) %}
+    <div style="border-top:1px solid var(--gray-200); padding-top:10px;">
+        <div class="text-sm" style="font-weight:700; margin-bottom:4px;">🎁 Invite a friend</div>
+        <div class="text-sm text-muted mb-8">
+            They get {{ offers.settings.referral_friend_percent }}% off their first print.
+            You get {{ offers.settings.referral_referrer_percent }}% off your next print once they print
+            (up to ₹{{ offers.settings.referral_max_discount }} each).
+            {% if offers.slots_left is not none %}Only {{ offers.slots_left }} spots left.{% endif %}
+        </div>
+        <div class="flex gap-8" style="align-items:center; flex-wrap:wrap;">
+            <code id="ref-code" style="font-size:18px; font-weight:800; letter-spacing:2px; padding:6px 12px; background:var(--gray-100); border-radius:var(--radius);">{{ offers.code }}</code>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyRef(this)">Copy invite link</button>
+        </div>
+        {% if offers.referral_qualified %}
+        <div class="text-sm text-muted" style="margin-top:6px;">
+            {{ offers.referral_qualified }} of your {{ offers.referral_count }} invites have printed.
+        </div>
+        {% endif %}
+        <input type="hidden" id="ref-link" value="{{ share_url }}">
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function copyRef(btn) {
+    var link = document.getElementById('ref-link').value;
+    var done = function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+    };
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(link).then(done, function () { window.prompt('Copy this link:', link); });
+    } else {
+        window.prompt('Copy this link:', link);
+    }
+}
+</script>
+{% endif %}
+
+{% if ads %}
+<div class="mt-16" id="ad-banner">
+    <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-400); margin-bottom:6px; font-weight:600;">Sponsored</div>
+    <div id="ad-carousel" style="overflow:hidden; border-radius:var(--radius); border:1px solid var(--gray-200); background:var(--gray-50);">
+        {% for ad in ads %}
+        <div class="ad-slide" style="display:{% if loop.first %}flex{% else %}none{% endif %}; align-items:center; gap:12px; padding:12px 16px;">
+            {% if ad.image_filename %}
+            <img src="{{ url_for('api.ad_image', ad_id=ad.id) }}" alt="" style="width:48px; height:48px; border-radius:8px; object-fit:cover; flex-shrink:0;">
+            {% endif %}
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:14px; color:var(--gray-800); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ ad.title }}</div>
+                {% if ad.content %}
+                <div style="font-size:12px; color:var(--gray-500); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ ad.content }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if pricing %}
+<div class="sec-head"><h3>Price list</h3></div>
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <tr><th>Paper</th><th>Mode</th><th>Single side</th><th>Both sides</th></tr>
+            {% for p in pricing %}
+            <tr>
+                <td>{{ p.paper_size }}</td>
+                <td>{{ 'B&W' if p.color_mode == 'bw' else 'Colour' }}</td>
+                <td>₹{{ '%.2f'|format(p.price_per_page) }}</td>
+                <td>₹{{ '%.2f'|format(p.duplex_price_per_page if p.duplex_price_per_page is not none else p.price_per_page) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <p class="text-sm text-muted mt-8">Rates are per sheet of paper.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Time-of-day greeting
+    (function () {
+        var h = new Date().getHours();
+        var el = document.getElementById('greeting');
+        if (el) el.textContent = h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+    })();
+
+    // Rotate ads every 4s if multiple
+    (function() {
+        var slides = document.querySelectorAll('.ad-slide');
+        if (slides.length <= 1) return;
+        var idx = 0;
+        setInterval(function() {
+            slides[idx].style.display = 'none';
+            idx = (idx + 1) % slides.length;
+            slides[idx].style.display = 'flex';
+        }, 4000);
+    })();
+
+    // Live job status via SSE (falls back to polling if EventSource unavailable)
+    (function(){
+        var hasActive = document.getElementById('active-jobs');
+        if (!hasActive) {
+            setTimeout(() => location.reload(), 15000);
+            return;
+        }
+        if (typeof EventSource === 'undefined') {
+            setTimeout(() => location.reload(), 10000);
+            return;
+        }
+        var es = new EventSource('/api/jobs/stream');
+        var lastStatuses = {};
+        es.onmessage = function(ev) {
+            try {
+                var jobs = JSON.parse(ev.data);
+                var changed = false;
+                jobs.forEach(function(j) {
+                    if (lastStatuses[j.id] && lastStatuses[j.id] !== j.status) changed = true;
+                    lastStatuses[j.id] = j.status;
+                    var el = document.querySelector('[data-job-id="' + j.id + '"] [data-status]');
+                    if (el) {
+                        el.textContent = j.status;
+                        el.className = 'badge badge-' + j.status;
+                    }
+                });
+                if (changed) setTimeout(() => location.reload(), 800);
+            } catch (e) {}
+        };
+        es.addEventListener('idle', function() { es.close(); setTimeout(() => location.reload(), 1500); });
+        es.addEventListener('end',  function() { es.close(); });
+        es.onerror = function() { es.close(); setTimeout(() => location.reload(), 10000); };
+    })();
+</script>
+{% endblock %}

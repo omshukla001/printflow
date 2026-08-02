@@ -1,0 +1,22 @@
+# Server-side deps (Render / Railway / Fly).
+#
+# Deliberately NOT pycups: the cloud server runs with CLOUD_MODE=true, where
+# every `from app.services.printer import ...` sits behind a cloud_mode branch
+# (app/routes/admin.py, app/routes/kiosk.py, app/services/queue_manager.py), so
+# the `import cups` at app/services/printer.py:2 never executes. pycups also
+# needs CUPS headers to build, which would fail the image build. Printing is
+# done by the RPi agent, not by the server.
+flask
+flask-sqlalchemy
+flask-login
+flask-wtf
+flask-limiter
+flask-migrate
+qrcode[pil]
+PyMuPDF
+python-magic
+gunicorn
+bcrypt
+reportlab
+APScheduler
+psycopg2-binary

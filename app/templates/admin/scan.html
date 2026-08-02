@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}QR Scanner - PrintFlow{% endblock %}
+
+{% block head %}
+<script src="{{ url_for('static', filename='lib/html5-qrcode.min.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<h2 class="section-title mb-16">Scan QR Code</h2>
+
+<div id="scanner-container"></div>
+
+<div id="scan-result" class="scan-result hidden"></div>
+
+<div class="card mt-16">
+    <div class="card-title mb-8">Manual Entry</div>
+    <form id="manual-form" class="flex gap-8">
+        <input type="text" id="manual-token" placeholder="Enter QR token" class="form-group" style="flex:1; padding:8px 12px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+        <button type="submit" class="btn btn-primary btn-sm">Submit</button>
+    </form>
+</div>
+
+{% if recent_scans %}
+<div class="card mt-16">
+    <div class="card-title mb-8">Recent Scans</div>
+    {% for scan in recent_scans %}
+    <div class="job-meta mb-8">
+        {{ scan.scanned_at.strftime('%H:%M') }} —
+        {% set scanned_user = None %}
+        {% if scan.user_id %}
+            User #{{ scan.user_id }}
+        {% endif %}
+        ({{ scan.scan_type }})
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+{% endblock %}

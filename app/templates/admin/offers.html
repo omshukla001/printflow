@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Offers - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2 class="section-title">Offers &amp; Referrals</h2>
+</div>
+
+<div class="card">
+    <div class="card-title mb-8">Campaign so far</div>
+    <div class="flex gap-8" style="flex-wrap:wrap;">
+        <div><strong>{{ stats.pending }}</strong> <span class="text-sm text-muted">invites waiting on a first print</span></div>
+        <div><strong>{{ stats.rewarded }}</strong> <span class="text-sm text-muted">rewarded referrals</span></div>
+        <div><strong>{{ 'unlimited' if stats.slots_left is none else stats.slots_left }}</strong> <span class="text-sm text-muted">slots left</span></div>
+        <div><strong>{{ stats.vouchers_available }}</strong> <span class="text-sm text-muted">unused vouchers</span></div>
+        <div><strong>₹{{ '%.2f'|format(stats.total_saved) }}</strong> <span class="text-sm text-muted">given away so far</span></div>
+    </div>
+</div>
+
+<!-- Referral programme -->
+<div class="card">
+    <div class="card-title mb-8">Referral programme</div>
+    <form method="POST" action="{{ url_for('admin.offers_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group mb-8">
+            <label>
+                <input type="checkbox" name="referral_enabled" {% if settings.referral_enabled %}checked{% endif %}>
+                Referral programme running
+            </label>
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Headline shown to customers</label>
+            <input type="text" name="offers_headline" value="{{ settings.offers_headline }}"
+                   placeholder="🎉 Grand Opening Offers">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Friend gets (% off their first order)</label>
+            <input type="number" name="referral_friend_percent" min="0" max="100" step="1"
+                   value="{{ settings.referral_friend_percent }}">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Inviter gets (% off their next order, once the friend's first print completes)</label>
+            <input type="number" name="referral_referrer_percent" min="0" max="100" step="1"
+                   value="{{ settings.referral_referrer_percent }}">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Maximum discount per voucher (₹)</label>
+            <input type="number" name="referral_max_discount" min="0" step="1"
+                   value="{{ settings.referral_max_discount }}">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Limit to the first N successful referrals <span class="text-muted">(0 = no limit)</span></label>
+            <input type="number" name="referral_limit" min="0" step="1"
+                   value="{{ settings.referral_limit }}">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>Voucher expires after N days <span class="text-muted">(0 = never)</span></label>
+            <input type="number" name="referral_reward_days" min="0" step="1"
+                   value="{{ settings.referral_reward_days }}">
+        </div>
+
+        <div class="form-group mb-8">
+            <label>
+                <input type="checkbox" name="bulk_enabled" {% if settings.bulk_enabled %}checked{% endif %}>
+                Bulk printing discounts active
+            </label>
+        </div>
+
+        <div class="form-group mb-8">
+            <label>
+                <input type="checkbox" name="offers_stack" {% if settings.offers_stack %}checked{% endif %}>
+                Allow a bulk discount and a voucher on the same order
+            </label>
+            <div class="text-sm text-muted">
+                Off: only the better of the two applies, and the voucher stays in the customer's account.
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">Save settings</button>
+    </form>
+</div>
+
+<!-- Bulk tiers -->
+<div class="card">
+    <div class="card-title mb-8">Bulk printing discounts</div>
+    <p class="text-sm text-muted mb-8">
+        Applied on page impressions (pages × copies) in a single order. The highest
+        matching tier wins — tiers never stack with each other.
+    </p>
+
+    {% for tier in tiers %}
+    <form method="POST" action="{{ url_for('admin.update_tier', tier_id=tier.id) }}" class="mb-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Min pages</label>
+                <input type="number" name="min_pages" min="1" value="{{ tier.min_pages }}" style="width:100px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">% off</label>
+                <input type="number" name="discount_percent" min="1" max="100" step="0.5"
+                       value="{{ tier.discount_percent|round(2) }}" style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Cap ₹</label>
+                <input type="number" name="max_discount" min="0" step="1"
+                       value="{{ tier.max_discount if tier.max_discount is not none else '' }}"
+                       placeholder="none" style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">Label (optional)</label>
+                <input type="text" name="label" value="{{ tier.label or '' }}"
+                       placeholder="{{ tier.display_label }}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+    </form>
+    <div class="flex gap-8 mb-8" style="align-items:center;">
+        <span class="badge {{ 'badge-completed' if tier.is_active else 'badge-cancelled' }}">
+            {{ 'Active' if tier.is_active else 'Inactive' }}
+        </span>
+        <form method="POST" action="{{ url_for('admin.toggle_tier', tier_id=tier.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm {{ 'btn-warning' if tier.is_active else 'btn-success' }}">
+                {{ 'Deactivate' if tier.is_active else 'Activate' }}
+            </button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.delete_tier', tier_id=tier.id) }}" style="display:inline;"
+              onsubmit="return confirm('Delete this tier?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--gray-200); margin:12px 0;">
+    {% else %}
+    <div class="text-sm text-muted mb-8">No tiers yet.</div>
+    {% endfor %}
+
+    <div class="card-title mb-8" style="font-size:14px;">Add a tier</div>
+    <form method="POST" action="{{ url_for('admin.create_tier') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Min pages</label>
+                <input type="number" name="min_pages" min="1" placeholder="25" required style="width:100px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">% off</label>
+                <input type="number" name="discount_percent" min="1" max="100" step="0.5"
+                       placeholder="10" required style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Cap ₹</label>
+                <input type="number" name="max_discount" min="0" step="1" placeholder="none" style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">Label (optional)</label>
+                <input type="text" name="label" placeholder="25+ Pages → 10% OFF">
+            </div>
+            <button type="submit" class="btn btn-success btn-sm">Add tier</button>
+        </div>
+    </form>
+</div>
+
+<!-- Manual voucher -->
+<div class="card">
+    <div class="card-title mb-8">Give a customer a voucher</div>
+    <form method="POST" action="{{ url_for('admin.grant_voucher') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex gap-8" style="flex-wrap:wrap; align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Username</label>
+                <input type="text" name="username" placeholder="username" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">% off</label>
+                <input type="number" name="percent" min="1" max="100" step="1" placeholder="20" required style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label class="text-sm">Cap ₹</label>
+                <input type="number" name="cap" min="0" step="1" placeholder="50" style="width:90px;">
+            </div>
+            <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                <label class="text-sm">Note shown to the customer</label>
+                <input type="text" name="description" placeholder="Sorry about the paper jam">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Grant</button>
+        </div>
+    </form>
+</div>
+
+<!-- Referral activity -->
+<div class="card">
+    <div class="card-title mb-8">Recent referrals</div>
+    {% if referrals %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>Inviter</th><th>Friend</th><th>Code</th><th>Status</th><th>Joined</th></tr>
+            </thead>
+            <tbody>
+            {% for r in referrals %}
+                <tr>
+                    <td>{{ r.referrer.full_name if r.referrer else '—' }}</td>
+                    <td>{{ r.referred.full_name if r.referred else '—' }}</td>
+                    <td><code>{{ r.code_used or '—' }}</code></td>
+                    <td>
+                        {% if r.status == 'qualified' and r.reward_voucher_id %}
+                            <span class="badge badge-completed">Rewarded</span>
+                        {% elif r.status == 'qualified' %}
+                            <span class="badge badge-cancelled">Qualified (cap reached)</span>
+                        {% else %}
+                            <span class="badge badge-queued">Waiting on first print</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-sm text-muted">{{ r.created_at.strftime('%d %b %Y') if r.created_at else '' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-sm text-muted">No referrals yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

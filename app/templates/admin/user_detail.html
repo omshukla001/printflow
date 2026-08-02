@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ user.full_name }} - PrintFlow{% endblock %}
+
+{% block content %}
+<h2 class="section-title">{{ user.full_name }}</h2>
+<p class="text-sm text-muted mb-16">@{{ user.username }} &middot; {{ user.email }} &middot; Joined {{ user.created_at.strftime('%d %b %Y') }}</p>
+
+<div class="balance-card">
+    <div class="balance-label">Balance Owed</div>
+    <div class="balance-amount">₹{{ '%.2f'|format(user.balance_owed) }}</div>
+</div>
+
+<div class="card mb-16">
+    <div class="card-title mb-8">Record Payment</div>
+    <form method="POST" action="{{ url_for('admin.record_payment', user_id=user.id) }}" class="flex gap-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="number" name="amount" placeholder="Amount (₹)" step="1" min="1"
+               style="flex:1; padding:8px 12px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+        <button type="submit" class="btn btn-success btn-sm">Record</button>
+    </form>
+</div>
+
+<div class="card mb-16">
+    <div class="card-title mb-8">Issue Refund</div>
+    <form method="POST" action="{{ url_for('admin.issue_refund', user_id=user.id) }}" class="flex gap-8" style="flex-wrap: wrap;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="number" name="amount" placeholder="Amount (₹)" step="1" min="1"
+               style="width: 110px; padding:8px 12px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+        <input type="text" name="reason" placeholder="Reason"
+               style="flex:1; min-width: 150px; padding:8px 12px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+        <button type="submit" class="btn btn-warning btn-sm">Refund</button>
+    </form>
+</div>
+
+<div class="card mb-16">
+    <div class="card-title mb-8">Print Jobs ({{ jobs|length }})</div>
+    {% for job in jobs[:20] %}
+    <div class="job-meta mb-8">
+        <strong>{{ job.filename }}</strong> —
+        {{ job.page_count }}p x{{ job.copies }}, {{ job.color_mode|upper }},
+        ₹{{ '%.2f'|format(job.cost) }}
+        <span class="badge badge-{{ job.status }}">{{ job.status }}</span>
+        {% if job.failed_reason %}<span class="text-muted" style="font-size:11px;">— {{ job.failed_reason }}</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% if not jobs %}
+    <div class="text-muted">No jobs yet</div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-title mb-8">Payment Ledger</div>
+    {% if ledger %}
+    <div class="table-wrapper">
+        <table>
+            <tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th></tr>
+            {% for entry in ledger %}
+            <tr>
+                <td>{{ entry.created_at.strftime('%d %b %H:%M') }}</td>
+                <td>{{ entry.entry_type or 'charge' }}</td>
+                <td style="color: {{ 'var(--danger)' if entry.amount > 0 else 'var(--success)' }};">
+                    {{ '+' if entry.amount > 0 else '' }}₹{{ '%.2f'|format(entry.amount) }}
+                </td>
+                <td>{{ entry.description }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <div class="text-muted">No transactions</div>
+    {% endif %}
+</div>
+{% endblock %}

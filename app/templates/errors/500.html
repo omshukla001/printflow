@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Error - PrintFlow{% endblock %}
+{% block content %}
+<div class="empty-state" style="margin-top: 60px;">
+    <div class="empty-state-icon">500</div>
+    <div class="empty-state-text">Something went wrong</div>
+    <a href="{{ url_for('auth.index') }}" class="btn btn-primary mt-16">Go Home</a>
+</div>
+{% endblock %}

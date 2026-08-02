@@ -1,0 +1,14 @@
+flask
+flask-sqlalchemy
+flask-login
+flask-wtf
+flask-limiter
+flask-migrate
+qrcode[pil]
+PyMuPDF
+python-magic
+gunicorn
+bcrypt
+pycups
+reportlab
+APScheduler

@@ -1,0 +1,17 @@
+[Unit]
+Description=PrintFlow Print Agent
+After=network-online.target cups.service
+Wants=network-online.target cups.service
+
+[Service]
+Type=simple
+User=avin
+Environment=SERVER_URL=https://your-domain.com
+Environment=AGENT_KEY=your-agent-key-here
+Environment=DEFAULT_PRINTER=HP-LaserJet-Professional-M1136-MFP
+ExecStart=/usr/bin/python3 /home/avin/printer_project/print_agent/print_agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

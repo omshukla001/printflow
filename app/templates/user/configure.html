@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Print Settings - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="sec-head" style="margin-top:0;">
+    <div style="min-width:0;">
+        <h3 style="font-size:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ job.filename }}</h3>
+        <p class="text-sm text-muted">{{ job.page_count }} page{{ 's' if job.page_count != 1 }}</p>
+    </div>
+</div>
+
+<div id="preview-area">
+{% if preview_status == 'ready' and preview_count > 0 %}
+<div class="preview-grid" id="preview-grid">
+    {% for i in range(1, preview_count + 1) %}
+    <div class="preview-thumb" onclick="openPreview({{ i }})">
+        <img src="{{ url_for('api.preview_image', job_id=job.id, page=i) }}" alt="Page {{ i }}" loading="lazy">
+        <div class="preview-thumb-label">{{ i }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% elif preview_status == 'failed' %}
+<div class="card mb-16"><p class="text-muted">Preview unavailable. You can still print this document.</p></div>
+{% else %}
+<div class="card mb-16" id="preview-loading">
+    <p class="text-muted"><span class="spinner"></span> Generating preview…</p>
+</div>
+{% endif %}
+</div>
+
+<form method="POST" id="config-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if presets %}
+    <div class="card mb-16">
+        <div class="card-title mb-8">Apply a saved preset</div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+            <select name="apply_preset" id="apply-preset"
+                    style="flex:1; min-width:200px; padding:8px 10px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+                <option value="">— none —</option>
+                {% for p in presets %}
+                <option value="{{ p.id }}"
+                        data-copies="{{ p.copies }}" data-color="{{ p.color_mode }}"
+                        data-paper="{{ p.paper_size }}" data-sides="{{ p.sides }}"
+                        data-nup="{{ p.pages_per_sheet }}" data-pageset="{{ p.page_set }}"
+                        data-order="{{ p.output_order }}" data-orientation="{{ p.orientation }}"
+                        data-fit="{{ '1' if p.fit_to_page else '' }}"
+                        data-quality="{{ p.print_quality }}"
+                        data-collate="{{ '1' if p.collate else '' }}">
+                    {{ p.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <a href="{{ url_for('user.presets') }}" class="btn btn-outline-primary btn-sm">Manage</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ===== Copies ===== -->
+    <div class="opt-group">
+        <div class="opt-label">
+            <span>Number of copies</span>
+            <span class="opt-hint">1 – 100</span>
+        </div>
+        <div class="stepper">
+            <button type="button" class="stepper-btn" id="copies-minus" aria-label="One fewer copy">&minus;</button>
+            <input type="number" id="copies" name="copies" value="1" min="1" max="100"
+                   inputmode="numeric" aria-label="Number of copies">
+            <button type="button" class="stepper-btn" id="copies-plus" aria-label="One more copy">+</button>
+        </div>
+        <div class="quick-copies" id="quick-copies">
+            <span class="quick-copy" data-n="1">1</span>
+            <span class="quick-copy" data-n="2">2</span>
+            <span class="quick-copy" data-n="5">5</span>
+            <span class="quick-copy" data-n="10">10</span>
+            <span class="quick-copy" data-n="25">25</span>
+            <span class="quick-copy" data-n="50">50</span>
+        </div>
+    </div>
+
+    <!-- ===== Sides ===== -->
+    <div class="opt-group">
+        <div class="opt-label">
+            <span>Print sides</span>
+            <span class="opt-hint">per sheet of paper</span>
+        </div>
+        <div class="opt-grid cols-2">
+            <label class="opt-card">
+                <input type="radio" name="sides" value="one-sided" checked>
+                <span class="opt-card-inner">
+                    <span class="opt-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </span>
+                    <span class="opt-name">Single side</span>
+                    <span class="opt-meta">₹{{ '%.2f'|format(rate_simplex) }} / sheet</span>
+                </span>
+            </label>
+            <label class="opt-card">
+                <input type="radio" name="sides" value="two-sided">
+                <span class="opt-card-inner">
+                    <span class="opt-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="9" height="16" rx="1.5"/><rect x="13" y="4" width="9" height="16" rx="1.5"/></svg>
+                    </span>
+                    <span class="opt-name">Both sides</span>
+                    <span class="opt-meta">₹{{ '%.2f'|format(rate_duplex) }} / sheet</span>
+                </span>
+            </label>
+        </div>
+        <p class="text-sm text-muted" style="margin-top:8px;">
+            Both sides uses half the paper — usually cheaper for long documents.
+        </p>
+    </div>
+
+    <!-- ===== Paper ===== -->
+    <div class="opt-group">
+        <div class="opt-label"><span>Paper size</span></div>
+        <div class="chip-row">
+            {% for size in ['A4', 'A3', 'Letter'] %}
+            <label class="chip">
+                <input type="radio" name="paper_size" value="{{ size }}" {{ 'checked' if size == 'A4' }}>
+                <span class="chip-inner">{{ size }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ===== Colour ===== -->
+    <div class="opt-group">
+        <div class="opt-label"><span>Colour</span></div>
+        {% if color_enabled %}
+        <div class="opt-grid cols-2">
+            <label class="opt-card">
+                <input type="radio" name="color_mode" value="bw" checked>
+                <span class="opt-card-inner">
+                    <span class="opt-name">Black &amp; White</span>
+                </span>
+            </label>
+            <label class="opt-card">
+                <input type="radio" name="color_mode" value="color">
+                <span class="opt-card-inner">
+                    <span class="opt-name">Colour</span>
+                </span>
+            </label>
+        </div>
+        {% else %}
+        {# Colour is switched off shop-wide. Submit a fixed value; the server
+           forces 'bw' regardless, so this is presentation only. #}
+        <input type="hidden" name="color_mode" id="color_mode" value="bw">
+        <div class="notice">
+            <span>
+                <strong>Black &amp; white only.</strong>
+                Colour printing is unavailable at the moment — every job prints in mono.
+            </span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ===== Advanced ===== -->
+    <div class="card" style="background: var(--gray-50);">
+        <div class="flex-between" onclick="toggleAdvanced()" style="cursor:pointer; user-select:none;">
+            <strong>Advanced options</strong>
+            <span id="adv-chev" style="font-size:18px; transition: transform 0.2s;">▸</span>
+        </div>
+        <div id="adv-options" class="hidden" style="margin-top:14px;">
+            <div class="form-group mb-8">
+                <label for="page_ranges">Pages to print
+                    <span class="text-muted" style="font-weight:400; font-size:12px;">e.g. 1-3,5,7-9 (blank = all)</span>
+                </label>
+                <input type="text" id="page_ranges" name="page_ranges" value=""
+                       placeholder="all pages" autocomplete="off" onchange="updateCost()">
+                <div id="range-error" style="color: var(--danger); font-size:12px; margin-top:4px;"></div>
+            </div>
+
+            <div class="print-options">
+                <div class="form-group">
+                    <label for="pages_per_sheet">Pages per sheet</label>
+                    <select id="pages_per_sheet" name="pages_per_sheet" onchange="updateCost()">
+                        <option value="1">1 (normal)</option>
+                        <option value="2">2-up</option>
+                        <option value="4">4-up</option>
+                        <option value="6">6-up</option>
+                        <option value="9">9-up</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="page_set">Page set</label>
+                    <select id="page_set" name="page_set" onchange="updateCost()">
+                        <option value="all">All pages</option>
+                        <option value="odd">Odd only</option>
+                        <option value="even">Even only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="output_order">Order</label>
+                    <select id="output_order" name="output_order">
+                        <option value="normal">Normal</option>
+                        <option value="reverse">Reverse (last → first)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="orientation">Orientation</label>
+                    <select id="orientation" name="orientation">
+                        <option value="auto">Auto (use document)</option>
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape">Landscape</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="print_quality">Quality</label>
+                    <select id="print_quality" name="print_quality">
+                        <option value="normal">Normal</option>
+                        <option value="draft">Draft (saves toner)</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex gap-16 mt-8" style="flex-wrap: wrap;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+                    <input type="checkbox" id="fit_to_page" name="fit_to_page" value="1">
+                    Fit to page
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+                    <input type="checkbox" id="collate" name="collate" value="on" checked>
+                    Collate copies
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-12" style="background: var(--gray-50);">
+        <div class="flex-between" onclick="togglePresetSave()" style="cursor:pointer; user-select:none;">
+            <strong>Save as preset</strong>
+            <span id="preset-chev" style="font-size:18px;">▸</span>
+        </div>
+        <div id="preset-save-area" class="hidden" style="margin-top:8px;">
+            <input type="text" name="save_preset_name" placeholder="Preset name (e.g. Lecture notes 2-up)"
+                   maxlength="80" autocomplete="off"
+                   style="width:100%; padding:8px 10px; border:1px solid var(--gray-300); border-radius:var(--radius);">
+            <p class="text-sm text-muted mt-8">Leave blank to skip saving.</p>
+        </div>
+    </div>
+
+    {% if lock_enabled %}
+    <div class="form-group" style="margin-top:12px;">
+        <label for="lock_password" style="color: var(--danger); font-weight:600;">Enter print code to submit</label>
+        <input type="text" id="lock_password" name="lock_password" required autocomplete="off"
+               placeholder="Ask admin for the code"
+               style="width:100%; padding:10px 12px; border:2px solid var(--danger); border-radius:8px; font-size:16px;">
+    </div>
+    {% endif %}
+
+    <div class="cost-bar">
+        <div class="cost-bar-left">
+            <div class="cost-bar-label">Total cost</div>
+            <div class="cost-bar-value" id="cost-display">₹{{ '%.2f'|format(default_cost) }}</div>
+            <div class="cost-bar-meta" id="discount-info" style="color:#047857; font-weight:600;"></div>
+            <div class="cost-bar-meta" id="sheet-info">&nbsp;</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Send to print</button>
+    </div>
+</form>
+
+<!-- Preview modal -->
+<div class="modal-overlay hidden" id="preview-modal" onclick="closePreview()">
+    <button class="modal-close" onclick="closePreview()">&times;</button>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <img id="preview-modal-img" src="" alt="Preview">
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const pageCount = {{ job.page_count }};
+
+/* Options are a mix of radio groups, selects and hidden inputs, so read and
+   write them by name rather than assuming any one element type. */
+function val(name) {
+    const checked = document.querySelector('input[type="radio"][name="' + name + '"]:checked');
+    if (checked) return checked.value;
+    const el = document.querySelector('[name="' + name + '"]');
+    return el ? el.value : '';
+}
+function setVal(name, value) {
+    const radios = document.querySelectorAll('input[type="radio"][name="' + name + '"]');
+    if (radios.length) {
+        radios.forEach(r => { r.checked = (r.value === String(value)); });
+        return;
+    }
+    const el = document.querySelector('[name="' + name + '"]');
+    if (el) el.value = value;
+}
+
+function toggleAdvanced() {
+    const el = document.getElementById('adv-options');
+    const ch = document.getElementById('adv-chev');
+    const hidden = el.classList.toggle('hidden');
+    ch.style.transform = hidden ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+function togglePresetSave() {
+    const el = document.getElementById('preset-save-area');
+    const ch = document.getElementById('preset-chev');
+    const hidden = el.classList.toggle('hidden');
+    ch.style.transform = hidden ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
+/* ---- Copies stepper ---- */
+const copiesInput = document.getElementById('copies');
+const MIN_COPIES = 1, MAX_COPIES = 100;
+
+function clampCopies(n) {
+    n = parseInt(n, 10);
+    if (isNaN(n)) n = 1;
+    return Math.max(MIN_COPIES, Math.min(MAX_COPIES, n));
+}
+function setCopies(n, skipCost) {
+    const v = clampCopies(n);
+    copiesInput.value = v;
+    document.getElementById('copies-minus').disabled = (v <= MIN_COPIES);
+    document.getElementById('copies-plus').disabled = (v >= MAX_COPIES);
+    document.querySelectorAll('.quick-copy').forEach(q => {
+        q.classList.toggle('on', parseInt(q.dataset.n, 10) === v);
+    });
+    if (!skipCost) updateCost();
+}
+document.getElementById('copies-minus').addEventListener('click',
+    () => setCopies(parseInt(copiesInput.value, 10) - 1));
+document.getElementById('copies-plus').addEventListener('click',
+    () => setCopies(parseInt(copiesInput.value, 10) + 1));
+copiesInput.addEventListener('input', () => setCopies(copiesInput.value));
+document.querySelectorAll('.quick-copy').forEach(q => {
+    q.addEventListener('click', () => setCopies(q.dataset.n));
+});
+
+/* Any option change re-prices the job. */
+document.querySelectorAll('input[type="radio"][name="sides"], input[type="radio"][name="paper_size"], input[type="radio"][name="color_mode"]')
+    .forEach(r => r.addEventListener('change', updateCost));
+
+/* ---- Live cost ---- */
+let costDebounce = null;
+function updateCost() {
+    if (costDebounce) clearTimeout(costDebounce);
+    costDebounce = setTimeout(_updateCostNow, 220);
+}
+function _updateCostNow() {
+    const params = new URLSearchParams({
+        pages: pageCount,
+        copies: copiesInput.value || 1,
+        color_mode: val('color_mode') || 'bw',
+        paper_size: val('paper_size') || 'A4',
+        sides: val('sides') || 'one-sided',
+        pages_per_sheet: val('pages_per_sheet') || 1,
+        page_set: val('page_set') || 'all',
+        page_ranges: val('page_ranges') || '',
+    });
+    fetch('/api/pricing/calculate?' + params.toString())
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('cost-display').textContent = '₹' + (d.cost || 0).toFixed(2);
+
+            // Show the saving, and strike through the pre-discount price.
+            const disc = document.getElementById('discount-info');
+            if (d.discount > 0) {
+                disc.innerHTML = '<s style="color:var(--gray-400); font-weight:400;">₹' +
+                    (d.base_cost || 0).toFixed(2) + '</s> · saving ₹' + d.discount.toFixed(2) +
+                    ' — ' + (d.discount_label || 'offer');
+            } else {
+                disc.textContent = '';
+            }
+
+            const sheets = d.sheets || 0;
+            document.getElementById('sheet-info').textContent =
+                sheets + ' sheet' + (sheets === 1 ? '' : 's') +
+                ' · ' + (d.effective_pages || 0) + ' page' + (d.effective_pages === 1 ? '' : 's') +
+                ' · ₹' + (d.rate || 0).toFixed(2) + '/sheet';
+            document.getElementById('range-error').textContent = d.range_error || '';
+        })
+        .catch(() => {});
+}
+
+function openPreview(page) {
+    document.getElementById('preview-modal-img').src = '/api/preview/{{ job.id }}/' + page;
+    document.getElementById('preview-modal').classList.remove('hidden');
+}
+function closePreview() {
+    document.getElementById('preview-modal').classList.add('hidden');
+}
+
+/* ---- Presets ---- */
+(function setupPresets() {
+    const sel = document.getElementById('apply-preset');
+    if (!sel) return;
+    sel.addEventListener('change', function () {
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return;
+        const d = opt.dataset;
+        setCopies(d.copies, true);
+        setVal('color_mode', d.color);
+        setVal('paper_size', d.paper);
+        setVal('sides', d.sides);
+        setVal('pages_per_sheet', d.nup);
+        setVal('page_set', d.pageset);
+        setVal('output_order', d.order);
+        setVal('orientation', d.orientation);
+        setVal('print_quality', d.quality);
+        document.getElementById('fit_to_page').checked = !!d.fit;
+        document.getElementById('collate').checked = !!d.collate;
+        if (d.nup !== '1' || d.pageset !== 'all' || d.order !== 'normal' ||
+            d.orientation !== 'auto' || d.quality !== 'normal' || d.fit) {
+            document.getElementById('adv-options').classList.remove('hidden');
+            document.getElementById('adv-chev').style.transform = 'rotate(90deg)';
+        }
+        updateCost();
+    });
+})();
+
+{% if preview_status == 'pending' %}
+(function pollPreview() {
+    let attempts = 0;
+    function tick() {
+        attempts++;
+        fetch('/api/job/{{ job.id }}/status')
+            .then(r => r.json())
+            .then(data => {
+                if (data.preview_status === 'ready' && data.preview_pages > 0) {
+                    location.reload();
+                } else if (data.preview_status === 'failed') {
+                    document.getElementById('preview-loading').innerHTML =
+                        '<p class="text-muted">Preview unavailable. You can still print.</p>';
+                } else if (attempts < 30) {
+                    setTimeout(tick, 1500);
+                }
+            })
+            .catch(() => { if (attempts < 30) setTimeout(tick, 2000); });
+    }
+    setTimeout(tick, 1500);
+})();
+{% endif %}
+
+setCopies(1);
+</script>
+{% endblock %}
