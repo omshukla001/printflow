@@ -103,6 +103,13 @@ class Config:
     # bypass the hidden field.
     COLOR_PRINTING_ENABLED = _env_bool('COLOR_PRINTING_ENABLED', False)
 
+    # Paper sizes offered to customers, in display order. The shop stocks A4
+    # only, so A3/Letter are off — set PAPER_SIZES=A4,A3,Letter to restore them.
+    # Anything not listed here is rejected server-side and clamped to the first
+    # entry, so a crafted POST can't order a size the shop can't load.
+    PAPER_SIZES = [s.strip() for s in
+                   os.environ.get('PAPER_SIZES', 'A4').split(',') if s.strip()] or ['A4']
+
     # Site URL for QR codes (set to your domain in production)
     SITE_URL = os.environ.get('SITE_URL', '')
 

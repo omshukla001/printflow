@@ -112,17 +112,22 @@
     </div>
 
     <!-- ===== Paper ===== -->
+    {% if paper_sizes|length > 1 %}
     <div class="opt-group">
         <div class="opt-label"><span>Paper size</span></div>
         <div class="chip-row">
-            {% for size in ['A4', 'A3', 'Letter'] %}
+            {% for size in paper_sizes %}
             <label class="chip">
-                <input type="radio" name="paper_size" value="{{ size }}" {{ 'checked' if size == 'A4' }}>
+                <input type="radio" name="paper_size" value="{{ size }}" {{ 'checked' if loop.first }}>
                 <span class="chip-inner">{{ size }}</span>
             </label>
             {% endfor %}
         </div>
     </div>
+    {% else %}
+    {# Only one size stocked — no choice to make, so submit it silently. #}
+    <input type="hidden" name="paper_size" id="paper_size" value="{{ paper_sizes[0] }}">
+    {% endif %}
 
     <!-- ===== Colour ===== -->
     <div class="opt-group">

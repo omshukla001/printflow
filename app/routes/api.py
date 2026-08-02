@@ -11,7 +11,7 @@ from app.services.receipts import generate_receipt
 from app.services.sse import stream_job_status
 from app.services import offers, ads as ad_service
 from app.services.print_options import (count_pages_in_range, normalize_page_ranges,
-                                        color_enabled)
+                                        color_enabled, allowed_paper)
 
 api_bp = Blueprint('api', __name__)
 
@@ -102,7 +102,10 @@ def calculate_price():
         nup = int(request.args.get('pages_per_sheet', 1))
     except ValueError:
         return jsonify({'error': 'Invalid params'}), 400
-    paper = request.args.get('paper_size', 'A4')
+    offered = allowed_paper()
+    paper = request.args.get('paper_size', offered[0])
+    if paper not in offered:
+        paper = offered[0]
     color = request.args.get('color_mode', 'bw')
     # Keep the estimate honest: if colour is switched off the job will be
     # forced to mono on submit, so quote the mono rate here too.

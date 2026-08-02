@@ -45,6 +45,22 @@ def color_enabled():
         return False
 
 
+def allowed_paper():
+    """Paper sizes the shop currently offers, first entry being the default.
+
+    Falls back to the full built-in list outside an app context so the pure
+    helpers stay usable from scripts.
+    """
+    try:
+        from flask import current_app
+        sizes = current_app.config.get('PAPER_SIZES')
+        if sizes:
+            return tuple(s for s in sizes if s in ALLOWED_PAPER) or (ALLOWED_PAPER[0],)
+    except Exception:
+        pass
+    return ALLOWED_PAPER
+
+
 def normalize_page_ranges(text, max_page=None):
     """Validate and normalize a page-range string.
 
@@ -153,10 +169,14 @@ def validate_and_apply(form, job):
     if job.color_mode == 'color' and not color_enabled():
         job.color_mode = 'bw'
 
-    job.paper_size = _get('paper_size', 'A4')
-    if job.paper_size not in ALLOWED_PAPER:
-        errors.append(('paper_size', 'Invalid paper size.'))
-        job.paper_size = 'A4'
+    offered = allowed_paper()
+    job.paper_size = _get('paper_size', offered[0])
+    if job.paper_size not in offered:
+        # Not an error the customer can act on when the size simply isn't
+        # stocked — quietly clamp to the default rather than rejecting.
+        if job.paper_size not in ALLOWED_PAPER:
+            errors.append(('paper_size', 'Invalid paper size.'))
+        job.paper_size = offered[0]
 
     job.sides = _get('sides', 'one-sided')
     if job.sides not in ALLOWED_SIDES:

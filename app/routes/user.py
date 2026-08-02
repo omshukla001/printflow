@@ -37,17 +37,21 @@ def dashboard():
     active_ads = Advertisement.query.filter_by(is_active=True).order_by(
         Advertisement.created_at.desc()).all()
 
+    from app.services.pricing import get_price_per_page
+    from app.services.print_options import allowed_paper
+    offered = allowed_paper()
+    # Only show price rows for sizes actually on offer.
+    pricing = [p for p in pricing if p.paper_size in offered]
     offers.expire_stale_vouchers()
     summary = offers.user_summary(current_user)
     share_base = (current_app.config.get('SITE_URL') or request.host_url).rstrip('/')
 
-    from app.services.pricing import get_price_per_page
     return render_template('user/dashboard.html',
                            active_jobs=active_jobs,
                            queue_position=queue_pos,
                            pricing=pricing,
-                           rate_simplex=get_price_per_page('A4', 'bw', 'one-sided'),
-                           rate_duplex=get_price_per_page('A4', 'bw', 'two-sided'),
+                           rate_simplex=get_price_per_page(offered[0], 'bw', 'one-sided'),
+                           rate_duplex=get_price_per_page(offered[0], 'bw', 'two-sided'),
                            ads=active_ads,
                            offers=summary,
                            share_url=f"{share_base}{url_for('auth.register')}?ref={summary['code']}")
@@ -200,10 +204,11 @@ def configure_job(job_id):
 
     # Per-sheet rates shown on the sides selector so the cost is legible before
     # the live estimate comes back.
-    from app.services.print_options import color_enabled
+    from app.services.print_options import color_enabled, allowed_paper
     from app.services.pricing import get_price_per_page
-    rate_simplex = get_price_per_page('A4', 'bw', 'one-sided')
-    rate_duplex = get_price_per_page('A4', 'bw', 'two-sided')
+    paper_sizes = allowed_paper()
+    rate_simplex = get_price_per_page(paper_sizes[0], 'bw', 'one-sided')
+    rate_duplex = get_price_per_page(paper_sizes[0], 'bw', 'two-sided')
 
     return render_template('user/configure.html',
                            job=job,
@@ -213,6 +218,7 @@ def configure_job(job_id):
                            preview_status=job.preview_status,
                            default_cost=default_cost,
                            color_enabled=color_enabled(),
+                           paper_sizes=paper_sizes,
                            rate_simplex=rate_simplex,
                            rate_duplex=rate_duplex,
                            lock_enabled=lock_enabled)
