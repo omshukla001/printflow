@@ -119,9 +119,35 @@ INDEX_ADDITIONS = [
 ]
 
 
+# The specs above are written in SQLite's spelling, which is what this file was
+# built against. PostgreSQL rejects several of them outright: DATETIME is not a
+# type, and BOOLEAN DEFAULT 0 is not a boolean.
+#
+# This stayed hidden for a long time because create_all() builds every column
+# correctly on a new database, so compat only ever ALTERs a column added to the
+# model *after* that table already existed. The first such column on Postgres
+# fails its ALTER, and then every query naming it errors — the table loads
+# fine, the application does not.
+_DIALECT_SPECS = {
+    'postgresql': [
+        ('DATETIME', 'TIMESTAMP'),
+        ('BOOLEAN DEFAULT 0', 'BOOLEAN DEFAULT FALSE'),
+        ('BOOLEAN DEFAULT 1', 'BOOLEAN DEFAULT TRUE'),
+    ],
+}
+
+
+def _portable_spec(spec, dialect):
+    for pattern, replacement in _DIALECT_SPECS.get(dialect, []):
+        if spec.upper().startswith(pattern):
+            return replacement + spec[len(pattern):]
+    return spec
+
+
 def apply_compat_schema(db):
     """Add new columns/indexes that may be missing from older DBs."""
     inspector = inspect(db.engine)
+    dialect = db.engine.dialect.name
 
     with db.engine.begin() as conn:
         for table, col, spec in COLUMN_ADDITIONS:
@@ -131,10 +157,16 @@ def apply_compat_schema(db):
             if col in existing:
                 continue
             try:
-                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN "{col}" {spec}'))
+                conn.execute(text(
+                    f'ALTER TABLE {table} ADD COLUMN "{col}" '
+                    f'{_portable_spec(spec, dialect)}'))
                 log.info('Added column %s.%s', table, col)
             except Exception as e:
-                log.warning('Failed to add %s.%s: %s', table, col, e)
+                # Not a warning. The model declares this column, so from here
+                # on every query naming it raises and the feature using it is
+                # dead — that needs to be findable in the logs.
+                log.error('Could not add %s.%s (%s) — queries using it will '
+                          'now fail: %s', table, col, spec, e)
 
         # Refresh inspector after column adds
         inspector = inspect(db.engine)
