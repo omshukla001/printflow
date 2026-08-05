@@ -19,3 +19,8 @@ bcrypt
 reportlab
 APScheduler
 psycopg2-binary
+# Google sign-in (app/services/google_oauth.py) talks to accounts.google.com
+# over three HTTPS calls. Imported at module scope by app/routes/auth.py, so a
+# missing requests takes the whole application down at startup, not just the
+# sign-in button.
+requests
