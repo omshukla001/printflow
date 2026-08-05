@@ -33,6 +33,9 @@ DEFAULTS = {
     'referral_max_discount': '50',      # ₹ cap on either side
     'referral_limit': '50',             # first N successful referrals
     'referral_reward_days': '0',        # voucher lifetime; 0 = never expires
+    'signup_enabled': '1',              # every new account, not just invited ones
+    'signup_percent': '20',             # off the first print
+    'signup_max_discount': '50',        # ₹ cap
     'bulk_enabled': '1',
     'offers_stack': '1',                # allow bulk + voucher on one order
     # Plain text — the page draws its own icon. Emoji here would render as an
@@ -65,6 +68,9 @@ def get_settings():
         'referral_max_discount': _int('referral_max_discount'),
         'referral_limit': _int('referral_limit'),
         'referral_reward_days': _int('referral_reward_days'),
+        'signup_enabled': _flag('signup_enabled'),
+        'signup_percent': _int('signup_percent'),
+        'signup_max_discount': _int('signup_max_discount'),
         'bulk_enabled': _flag('bulk_enabled'),
         'offers_stack': _flag('offers_stack'),
         'offers_headline': get_setting('offers_headline', DEFAULTS['offers_headline']),
@@ -149,6 +155,33 @@ def grant_voucher(user, source, percent, max_discount, description,
     if commit:
         db.session.commit()
     return voucher
+
+
+def signup_percent():
+    """Headline discount for registering, or 0 when the campaign is off."""
+    settings = get_settings()
+    if not settings.get('signup_enabled'):
+        return 0
+    return float(settings.get('signup_percent') or 0)
+
+
+def grant_signup_voucher(user, commit=True):
+    """The welcome discount every new account gets.
+
+    Skipped for anyone who arrived on a referral code: that already granted a
+    welcome voucher, and handing out two would let one order take both. The
+    caller decides, since it knows whether the referral was applied.
+    """
+    percent = signup_percent()
+    if not percent:
+        return None
+    settings = get_settings()
+    return grant_voucher(
+        user, 'signup', percent, settings.get('signup_max_discount'),
+        f'Welcome — {percent:g}% off your first print',
+        expires_days=int(settings.get('referral_reward_days') or 0),
+        commit=commit,
+    )
 
 
 def register_referral(new_user, code):

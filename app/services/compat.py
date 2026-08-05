@@ -53,6 +53,9 @@ COLUMN_ADDITIONS = [
     ('print_jobs', 'collate', 'BOOLEAN DEFAULT 1'),
     ('print_jobs', 'printing_started_at', 'DATETIME'),
 
+    # stock_items
+    ('stock_items', 'tracking_enabled', 'BOOLEAN DEFAULT 0'),
+
     # kiosk_state
     ('kiosk_state', 'token_expires_at', 'DATETIME'),
 

@@ -226,6 +226,63 @@ body::before {
 }
 .auth-footer a:hover { color: var(--accent); }
 
+/* === Guest checkout and the signup offer === */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 16px;
+    color: var(--gray-400);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--gray-200);
+}
+.guest-block { text-align: center; }
+.guest-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-700);
+    margin-bottom: 6px;
+}
+.guest-note {
+    font-size: 13px;
+    color: var(--gray-500);
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+.signup-offer {
+    margin-top: 22px;
+    padding: 16px;
+    border: 1px solid #bbf7d0;
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border-radius: var(--radius);
+    text-align: center;
+}
+.signup-offer-badge {
+    display: inline-block;
+    background: #059669;
+    color: #fff;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+}
+.signup-offer-text {
+    font-size: 13px;
+    color: #065f46;
+    line-height: 1.55;
+}
+.signup-offer-text strong { display: block; margin-bottom: 3px; font-size: 14px; }
+
 /* === Forms === */
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-group label {

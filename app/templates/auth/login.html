@@ -25,10 +25,41 @@
         <p class="auth-footer" style="margin-top:14px;">
             <a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
         </p>
+
+        <div class="auth-divider"><span>or</span></div>
+
+        <div class="guest-block">
+            <div class="guest-title">In a hurry? Print without an account</div>
+            <p class="guest-note">
+                Go straight to uploading. No username, no password.
+                Your files and history are kept for a few hours, then cleared.
+            </p>
+            <form method="POST" action="{{ url_for('auth.guest_print') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-primary btn-block">
+                    Continue as guest
+                </button>
+            </form>
+        </div>
+
+        {% if signup_percent %}
+        <div class="signup-offer">
+            <div class="signup-offer-badge">{{ '%g'|format(signup_percent) }}% OFF</div>
+            <div class="signup-offer-text">
+                <strong>Register and save on your first print.</strong>
+                New accounts get {{ '%g'|format(signup_percent) }}% off straight away — plus
+                order history, saved settings and bulk discounts that guests don't get.
+            </div>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-block"
+               style="margin-top:12px;">Create a free account</a>
+        </div>
+        {% else %}
         <p class="auth-footer" style="margin-top:8px;">
             Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a>
         </p>
-        <p class="auth-footer" style="margin-top:8px;">
+        {% endif %}
+
+        <p class="auth-footer" style="margin-top:12px;">
             <a href="{{ url_for('auth.about') }}">About PrintFlow</a>
         </p>
     </div>

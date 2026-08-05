@@ -147,6 +147,12 @@ class Config:
     # Per-user concurrent active jobs cap
     USER_MAX_ACTIVE_JOBS = _env_int('USER_MAX_ACTIVE_JOBS', 10)
 
+    # Walk-in guests: how long a self-service throwaway account lives, and how
+    # fast they can be created. The rate limit matters — /guest is the only
+    # endpoint that writes a user row for a caller who has not authenticated.
+    GUEST_ACCOUNT_HOURS = _env_int('GUEST_ACCOUNT_HOURS', 4)
+    RATE_LIMIT_GUEST = os.environ.get('RATE_LIMIT_GUEST', '5 per minute; 40 per hour')
+
     # Kiosk token TTL (seconds). This has to cover a first-time customer being
     # bounced to the login page and typing their password before the token they
     # scanned dies, or they land on "QR code expired" having done nothing wrong.
@@ -159,7 +165,11 @@ class Config:
     PRINT_SPEED_SIMPLEX_PPM = _env_int('PRINT_SPEED_SIMPLEX_PPM', 30)
     PRINT_SPEED_DUPLEX_PPM = _env_int('PRINT_SPEED_DUPLEX_PPM', 15)
     # Spooling, waking from sleep, and first page out. Dominates a 1-page job.
-    PRINT_JOB_OVERHEAD_SECONDS = _env_int('PRINT_JOB_OVERHEAD_SECONDS', 12)
+    # 15 rather than 12: observed on the counter Brother, the countdown reached
+    # zero roughly two seconds before the printer actually stopped. Erring long
+    # is the safe direction — the "collect your papers" screen keys off this
+    # estimate, and showing it early sends someone to a printer still running.
+    PRINT_JOB_OVERHEAD_SECONDS = _env_int('PRINT_JOB_OVERHEAD_SECONDS', 15)
     PRINT_TIMING_SAMPLE_SIZE = _env_int('PRINT_TIMING_SAMPLE_SIZE', 50)
     PRINT_TIMING_MIN_SAMPLES = _env_int('PRINT_TIMING_MIN_SAMPLES', 5)
 

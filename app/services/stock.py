@@ -87,11 +87,22 @@ def record(item, change, reason, actor_id=None, job_id=None, note=None, commit=T
     return movement
 
 
+def start_tracking(item, commit=True):
+    """Begin warning about this item. Counting it is what turns warnings on."""
+    if item.tracking_enabled:
+        return False
+    item.tracking_enabled = True
+    if commit:
+        db.session.commit()
+    return True
+
+
 def restock(item, amount, actor_id=None, note=None):
     """Add stock. Amount must be positive."""
     amount = int(amount)
     if amount <= 0:
         raise ValueError('Restock amount must be greater than zero.')
+    start_tracking(item, commit=False)
     movement = record(item, amount, 'restock', actor_id=actor_id, note=note)
     check_item(item)
     return movement
@@ -101,7 +112,13 @@ def adjust(item, new_quantity, actor_id=None, note=None):
     """Set the level to a counted figure — a stocktake, or correcting a mistake."""
     new_quantity = max(0, int(new_quantity))
     delta = new_quantity - (item.quantity or 0)
+    # Before the no-op check: entering a count of zero against a row already at
+    # zero is still a count, and it is exactly how someone says "we really are
+    # out of this". Skipping it would leave the item silent forever.
+    started = start_tracking(item)
     if delta == 0:
+        if started:
+            check_item(item)
         return None
     movement = record(item, delta, 'adjust', actor_id=actor_id, note=note)
     check_item(item)
@@ -220,6 +237,13 @@ def item_subject(item):
 def check_item(item):
     """Raise, escalate or clear the low-stock alert for one item."""
     subject = item_subject(item)
+    # Nobody has counted this yet. A seeded row sits at zero, which reads as
+    # "out of paper" and is indistinguishable from the real thing — so the
+    # shop would be shouted at about empty toner on day one, and the warnings
+    # become noise long before they are ever true. Silent until counted.
+    if not item.tracking_enabled:
+        resolve_alert(subject, note='Stock tracking not enabled for this item')
+        return None
     if item.is_out:
         return raise_alert(
             f'{item.kind}_out', subject,

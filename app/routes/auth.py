@@ -4,7 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 import bcrypt
 from app.extensions import db, limiter
 from app.models import User, utcnow
-from app.services import audit, mailer, offers, password_reset
+from app.services import audit, mailer, offers, password_reset, guest as guest_service
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -89,7 +89,34 @@ def login():
 
         flash('Invalid username or password.', 'error')
 
-    return render_template('auth/login.html')
+    return render_template('auth/login.html', signup_percent=offers.signup_percent())
+
+
+@auth_bp.route('/guest', methods=['POST'])
+@limiter.limit(lambda: current_app.config.get('RATE_LIMIT_GUEST', '5 per minute; 40 per hour'))
+def guest_print():
+    """Print without registering — a throwaway account, created and signed in.
+
+    A walk-in who wants one page should not have to invent a username and
+    password at the counter with people waiting behind them. The account is
+    real (jobs, pricing and the queue all key off a user) but temporary, and
+    it earns no vouchers — offers.is_eligible already excludes guests.
+
+    Rate limited because this is the one endpoint that creates a database row
+    for an anonymous caller.
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.index'))
+
+    hours = int(current_app.config.get('GUEST_ACCOUNT_HOURS', 4))
+    user, _password = guest_service.create_guest(hours=hours)
+    login_user(user, remember=False,
+               duration=timedelta(hours=hours))
+    audit.record('user.guest_self_service', target_type='user', target_id=user.id)
+    db.session.commit()
+    flash('You are printing as a guest. Your files and history are kept for '
+          f'{hours} hours.', 'info')
+    return redirect(url_for('user.dashboard'))
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -143,6 +170,7 @@ def register():
 
         # A bad or closed referral code must never cost someone their signup.
         referral_code = (request.form.get('referral_code') or '').strip().upper()
+        voucher = None
         if referral_code:
             _, voucher, problem = offers.register_referral(user, referral_code)
             if voucher is not None:
@@ -150,6 +178,14 @@ def register():
                       'success')
             elif problem:
                 flash(problem, 'error')
+
+        # Only when the referral did not already hand them one — two welcome
+        # vouchers on one account would let a single order spend both.
+        if voucher is None:
+            voucher = offers.grant_signup_voucher(user)
+            if voucher is not None:
+                flash(f'Welcome! {voucher.discount_percent:g}% off your first print '
+                      'is waiting in your account.', 'success')
 
         flash('Account created! Please log in.', 'success')
         return redirect(url_for('auth.login'))

@@ -509,6 +509,11 @@ class StockItem(db.Model):
     printer_id = db.Column(db.String(64), nullable=True, index=True)
 
     quantity = db.Column(db.Integer, default=0)        # sheets, or pages of toner left
+    # Off until somebody actually counts the stock. A seeded row sits at
+    # quantity 0, which is indistinguishable from genuinely empty — without
+    # this the shop is told it is out of paper and toner from the day it opens.
+    # Set automatically by the first restock or adjustment.
+    tracking_enabled = db.Column(db.Boolean, default=False)
     low_threshold = db.Column(db.Integer, default=100)
     unit_cost = db.Column(db.Float, default=0.0)       # ₹ per sheet / per page
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
