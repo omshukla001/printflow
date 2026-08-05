@@ -244,6 +244,28 @@ body::before {
     height: 1px;
     background: var(--gray-200);
 }
+/* Google's branding guidelines: their mark on white, unmodified, with the
+   wording "Continue with Google". */
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 16px;
+    margin-bottom: 16px;
+    background: #fff;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    color: #3c4043;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background var(--transition), box-shadow var(--transition);
+}
+.btn-google:hover { background: var(--gray-50); box-shadow: var(--shadow-sm); }
+.btn-google svg { flex-shrink: 0; }
+
 .guest-block { text-align: center; }
 .guest-title {
     font-size: 15px;

@@ -22,6 +22,7 @@ COLUMN_ADDITIONS = [
     ('users', 'guest_expires_at', 'DATETIME'),
     ('users', 'referral_code', 'VARCHAR(16)'),
     ('users', 'referred_by_id', 'INTEGER'),
+    ('users', 'google_sub', 'VARCHAR(64)'),
 
     # print_jobs
     ('print_jobs', 'cost_locked', 'BOOLEAN DEFAULT 0'),

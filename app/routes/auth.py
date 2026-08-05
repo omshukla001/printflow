@@ -1,10 +1,17 @@
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+import logging
+import secrets
+from flask import (Blueprint, render_template, redirect, url_for, flash, request,
+                   current_app, session)
+from sqlalchemy.exc import IntegrityError
 from flask_login import login_user, logout_user, login_required, current_user
 import bcrypt
 from app.extensions import db, limiter
 from app.models import User, utcnow
-from app.services import audit, mailer, offers, password_reset, guest as guest_service
+from app.services import (audit, mailer, offers, password_reset,
+                          guest as guest_service, google_oauth)
+
+log = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -89,7 +96,9 @@ def login():
 
         flash('Invalid username or password.', 'error')
 
-    return render_template('auth/login.html', signup_percent=offers.signup_percent())
+    return render_template('auth/login.html',
+                           signup_percent=offers.signup_percent(),
+                           google_enabled=google_oauth.is_configured())
 
 
 @auth_bp.route('/guest', methods=['POST'])
@@ -116,6 +125,144 @@ def guest_print():
     db.session.commit()
     flash('You are printing as a guest. Your files and history are kept for '
           f'{hours} hours.', 'info')
+    return redirect(url_for('user.dashboard'))
+
+
+def _unique_username(base):
+    """A free username derived from an email local part."""
+    cleaned = ''.join(c for c in base.lower() if c.isalnum() or c == '_')[:24]
+    if len(cleaned) < 3:
+        cleaned = f'user{secrets.token_hex(3)}'
+    candidate = cleaned
+    while User.query.filter_by(username=candidate).first():
+        candidate = f'{cleaned[:20]}{secrets.randbelow(9000) + 1000}'
+    return candidate
+
+
+@auth_bp.route('/auth/google')
+@limiter.limit('10 per minute; 60 per hour')
+def google_login():
+    """Start the Google flow."""
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.index'))
+    if not google_oauth.is_configured():
+        flash('Google sign-in is not set up on this server.', 'error')
+        return redirect(url_for('auth.login'))
+
+    state = google_oauth.new_state()
+    session['google_oauth_state'] = state
+    return redirect(google_oauth.authorize_url(state))
+
+
+@auth_bp.route('/auth/google/callback')
+@limiter.limit('10 per minute; 60 per hour')
+def google_callback():
+    """Where Google sends them back."""
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.index'))
+    if not google_oauth.is_configured():
+        return redirect(url_for('auth.login'))
+
+    # Single-use: pop before anything else, so a replayed callback cannot be
+    # walked through a second time.
+    expected = session.pop('google_oauth_state', None)
+    supplied = request.args.get('state')
+    if not expected or not supplied or not secrets.compare_digest(expected, supplied):
+        audit.record('login.google_state_mismatch')
+        db.session.commit()
+        flash('Sign-in expired or was tampered with. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
+
+    if request.args.get('error') or not request.args.get('code'):
+        # Hitting "cancel" on Google's screen lands here; not an error worth
+        # shouting about.
+        return redirect(url_for('auth.login'))
+
+    token = google_oauth.exchange_code(request.args['code'])
+    profile = google_oauth.fetch_profile(token) if token else None
+    if profile is None:
+        flash('Could not complete Google sign-in. Please try again, or use a '
+              'username and password.', 'error')
+        return redirect(url_for('auth.login'))
+
+    user = User.query.filter_by(google_sub=profile['sub']).first()
+    is_new = False
+
+    if user is None:
+        # Same person, already registered with a password: attach Google to the
+        # existing account rather than making a second one. Safe because Google
+        # told us the address is verified, which was checked in fetch_profile.
+        user = User.query.filter_by(email=profile['email']).first()
+        if user is not None:
+            if user.is_guest:
+                # A throwaway walk-in account should never absorb a real
+                # identity — it expires, taking the Google login with it. Give
+                # the guest its canonical throwaway address back, or the insert
+                # below collides on the unique email and 500s. Nothing is lost:
+                # a guest's address is a placeholder create_guest invented.
+                user.email = f'{user.username}@guest.local'
+                db.session.commit()
+                user = None
+            else:
+                user.google_sub = profile['sub']
+                audit.record('login.google_linked', target_type='user',
+                             target_id=user.id)
+
+    if user is None:
+        user = User(
+            username=_unique_username(profile['email'].split('@')[0]),
+            email=profile['email'],
+            full_name=profile['name'],
+            # No password: the column is NOT NULL, and a random hash nobody
+            # holds the input to is the honest way to say "cannot be used".
+            password_hash=bcrypt.hashpw(secrets.token_bytes(32),
+                                        bcrypt.gensalt()).decode('utf-8'),
+            google_sub=profile['sub'],
+            password_changed_at=utcnow(),
+        )
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            # Two tabs racing the same first sign-in, or an address this code
+            # did not expect to be taken. Recover to whichever row won rather
+            # than showing a stack trace.
+            db.session.rollback()
+            user = (User.query.filter_by(google_sub=profile['sub']).first()
+                    or User.query.filter_by(email=profile['email']).first())
+            if user is None:
+                log.exception('Google sign-in could not create or find an account')
+                flash('Could not complete Google sign-in. Please try again.', 'error')
+                return redirect(url_for('auth.login'))
+        else:
+            is_new = True
+        offers.ensure_referral_code(user)
+        audit.record('user.register', target_type='user', target_id=user.id,
+                     details={'via': 'google'})
+
+    if not user.is_active_user:
+        flash('This account has been disabled. Please ask at the counter.', 'error')
+        return redirect(url_for('auth.login'))
+
+    if is_new:
+        voucher = offers.grant_signup_voucher(user)
+        if voucher is not None:
+            flash(f'Welcome! {voucher.discount_percent:g}% off your first print '
+                  'is waiting in your account.', 'success')
+
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.last_login_at = utcnow()
+    db.session.commit()
+
+    login_user(user, remember=True, duration=current_app.config.get(
+        'REMEMBER_COOKIE_DURATION', timedelta(hours=12)))
+    audit.record('login.success', target_type='user', target_id=user.id,
+                 details={'via': 'google'})
+    db.session.commit()
+
+    if user.is_admin:
+        return redirect(url_for('admin.dashboard'))
     return redirect(url_for('user.dashboard'))
 
 

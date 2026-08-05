@@ -43,6 +43,11 @@ class User(UserMixin, db.Model):
     is_guest = db.Column(db.Boolean, default=False)
     guest_expires_at = db.Column(db.DateTime, nullable=True)
 
+    # Google's stable subject id, not the email — a Google account can change
+    # its address, and matching on email alone would hand the account to
+    # whoever inherits that address later.
+    google_sub = db.Column(db.String(64), unique=True, nullable=True, index=True)
+
     # Referral programme — the code this user shares with friends.
     referral_code = db.Column(db.String(16), unique=True, nullable=True, index=True)
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)

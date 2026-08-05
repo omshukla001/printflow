@@ -147,6 +147,16 @@ class Config:
     # Per-user concurrent active jobs cap
     USER_MAX_ACTIVE_JOBS = _env_int('USER_MAX_ACTIVE_JOBS', 10)
 
+    # Google sign-in. Create an OAuth 2.0 Client ID (type: Web application) in
+    # the Google Cloud console, and register
+    #   https://<your domain>/auth/google/callback
+    # as an Authorized redirect URI. Until both values are set the button is
+    # not shown at all. GOOGLE_REDIRECT_URI only needs setting if the callback
+    # is reached on a different host than the app builds for itself.
+    GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', '')
+
     # Walk-in guests: how long a self-service throwaway account lives, and how
     # fast they can be created. The rate limit matters — /guest is the only
     # endpoint that writes a user row for a caller who has not authenticated.
