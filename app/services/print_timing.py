@@ -28,6 +28,13 @@ log = logging.getLogger(__name__)
 _CACHE_TTL_SECONDS = 300
 _cache = {'at': None, 'rates': None}
 
+# Floor for a believable measurement. A 100 ppm production press is 0.6s per
+# side, so anything under half a second is not a printer — it is CUPS closing
+# the job when the data reached the buffer while the paper is still moving.
+# Measured on a Brother HL-L2400D over USB: CUPS reported a 20-page job
+# complete in 7 seconds, and the printer's own state returned to idle after 2.
+MIN_PLAUSIBLE_SECONDS_PER_IMPRESSION = 0.5
+
 
 def _now():
     return datetime.now(timezone.utc)
@@ -101,7 +108,14 @@ def _learned_rates():
         if duration <= 0 or duration > 3600:
             continue
         per_impression = (duration - overhead) / count
-        if per_impression <= 0:
+        # Discard impossibly fast samples. The agent reports completion from
+        # the CUPS job state, and CUPS calls a job done once the data reaches
+        # the printer's buffer — on a USB laser that is seconds, while the
+        # paper keeps coming for a minute. Such a sample says nothing about the
+        # engine, and averaging it in would collapse every estimate to zero.
+        # Nothing images a side faster than this, so anything below it is
+        # measuring the cable, not the printer.
+        if per_impression < MIN_PLAUSIBLE_SECONDS_PER_IMPRESSION:
             continue
         buckets.setdefault(job.sides or 'one-sided', []).append(per_impression)
 
