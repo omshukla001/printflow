@@ -163,4 +163,11 @@ if __name__ == '__main__':
         log.error("AGENT_KEY not set!")
         sys.exit(1)
     log.info(f"Kiosk server starting — server: {SERVER_URL}, site: {SITE_URL}")
-    app.run(host='0.0.0.0', port=KIOSK_PORT, debug=False)
+    # Loopback only. The single client is the kiosk browser on this same Pi,
+    # and none of these routes authenticate: bound to 0.0.0.0 anyone on the
+    # shop wifi could read /kiosk/status for the live QR token, or POST
+    # /kiosk/activate in a loop to rotate the token out from under whoever is
+    # standing at the screen. Override only if the display is genuinely on
+    # another machine, and put something in front of it if you do.
+    app.run(host=os.environ.get('KIOSK_BIND', '127.0.0.1'),
+            port=KIOSK_PORT, debug=False)
