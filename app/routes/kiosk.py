@@ -9,6 +9,7 @@ from app.models import PrintJob, QRScan, User
 from app.services.kiosk import (
     get_current_token, generate_new_token, validate_and_consume,
     mark_scanned, get_status, activate_next_token, peek_token,
+    recent_completions,
 )
 from app.services.queue_manager import fail_job
 from app.services.qr_service import generate_qr_png
@@ -101,6 +102,7 @@ def status():
     data['queue_wait_seconds'] = round(wait)
     data['queue_wait_label'] = print_timing.format_duration(wait) if wait else None
     data['timing'] = print_timing.per_page_summary()
+    data['recently_completed'] = recent_completions()
     ads = Advertisement.query.filter_by(is_active=True).order_by(Advertisement.created_at.desc()).all()
     data['ads'] = [{
         'id': a.id,

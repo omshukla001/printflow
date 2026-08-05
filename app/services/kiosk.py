@@ -154,6 +154,40 @@ def get_status():
     return result
 
 
+def recent_completions(window_seconds=120, limit=5):
+    """Jobs finished recently, for the kiosk's "collect your papers" screen.
+
+    `ready_in_seconds` is how long until the paper is physically out, which is
+    not the same as the job being marked completed. The agent reports
+    completion from the CUPS job state, and CUPS closes a job once the data
+    reaches the printer's buffer — on a USB laser the sheets keep coming for
+    some time afterwards. Telling someone to collect their papers at that
+    moment sends them to a printer that is still running, so the display waits
+    for the estimate to run out instead.
+    """
+    from app.models import PrintJob, User
+    from app.services import print_options, print_timing
+
+    cutoff = _now() - timedelta(seconds=window_seconds)
+    jobs = (PrintJob.query
+            .filter(PrintJob.status == 'completed', PrintJob.printed_at >= cutoff)
+            .order_by(PrintJob.printed_at.desc())
+            .limit(limit)
+            .all())
+    if not jobs:
+        return []
+
+    names = {u.id: u.full_name for u in
+             User.query.filter(User.id.in_({j.user_id for j in jobs})).all()}
+    return [{
+        'id': j.id,
+        'user': names.get(j.user_id) or 'Customer',
+        'filename': j.filename,
+        'sheets': print_options.effective_sheets(j),
+        'ready_in_seconds': round(print_timing.remaining_seconds(j)),
+    } for j in jobs]
+
+
 def activate_next_token():
     """Promote the pre-generated next token to current, reset scan state."""
     state = _get_state()

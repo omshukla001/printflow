@@ -302,6 +302,48 @@
         .scan-overlay .scan-info { font-size: 24px; color: #94a3b8; }
         .scan-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
 
+        /* ===== Job finished — collect your papers =====
+           Sits above the scan overlay: if a job finishes at the moment someone
+           else scans, "take your papers" is the more urgent of the two. */
+        .done-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(6, 78, 59, 0.97);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 120;
+            animation: fadeIn 0.3s ease;
+        }
+        .done-overlay.show { display: flex; }
+        .done-overlay.fade-out { animation: fadeOut 0.6s ease forwards; }
+        .done-inner { text-align: center; animation: scaleIn 0.45s ease; padding: 0 40px; }
+        .done-icon { font-size: 110px; line-height: 1; margin-bottom: 10px; }
+        .done-title {
+            font-size: 96px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #ffffff;
+            line-height: 1.05;
+            margin-bottom: 18px;
+        }
+        .done-collect {
+            font-size: 44px;
+            font-weight: 700;
+            color: #6ee7b7;
+            margin-bottom: 26px;
+        }
+        .done-detail { font-size: 26px; color: #a7f3d0; margin-bottom: 30px; }
+        .done-thanks { font-size: 34px; font-weight: 600; color: #ffffff; }
+        /* Readable across the room on a small counter monitor. */
+        @media (max-width: 900px), (max-height: 700px) {
+            .done-title { font-size: 58px; }
+            .done-collect { font-size: 30px; }
+            .done-detail { font-size: 19px; }
+            .done-thanks { font-size: 23px; }
+            .done-icon { font-size: 72px; }
+        }
+
         /* How long a page takes — sets expectations before anyone scans */
         .timing-hint {
             font-size: 17px;
@@ -484,6 +526,16 @@
         </div>
     </div>
 
+    <div class="done-overlay" id="done-overlay">
+        <div class="done-inner">
+            <div class="done-icon">&#128424;</div>
+            <div class="done-title">PRINTING DONE</div>
+            <div class="done-collect">Please take your papers from the printer</div>
+            <div class="done-detail" id="done-detail"></div>
+            <div class="done-thanks" id="done-thanks"></div>
+        </div>
+    </div>
+
     <div class="footer">PrintFlow &mdash; Powered by Raspberry Pi</div>
 
     <script>
@@ -494,6 +546,9 @@
         const lockBanner = document.getElementById('lock-banner');
         const printingBanner = document.getElementById('printing-banner');
         const timingHint = document.getElementById('timing-hint');
+        const doneOverlay = document.getElementById('done-overlay');
+        const doneDetail = document.getElementById('done-detail');
+        const doneThanks = document.getElementById('done-thanks');
         const queueBadge = document.getElementById('queue-badge');
         const adSlidesContainer = document.getElementById('ad-slides-container');
         const slideDots = document.getElementById('slide-dots');
@@ -788,6 +843,60 @@
             }
         }, 1000);
 
+        // Jobs already announced. The server keeps reporting a completion for
+        // a couple of minutes so a display that polls slowly cannot miss it,
+        // which means we have to remember what we have shown.
+        var announced = new Set();
+        // On the very first poll everything recent is backfill, not news —
+        // otherwise restarting the browser replays every job from the last two
+        // minutes at whoever happens to be standing there.
+        var seenFirstPoll = false;
+        var doneTimer = null;
+
+        function showDoneOverlay(job) {
+            if (doneTimer) { clearTimeout(doneTimer); doneTimer = null; }
+
+            var sheets = job.sheets || 0;
+            doneDetail.textContent = job.filename
+                ? job.filename + ' · ' + sheets + ' sheet' + (sheets === 1 ? '' : 's')
+                : sheets + ' sheet' + (sheets === 1 ? '' : 's');
+            // Names are user-supplied; textContent keeps a name containing
+            // markup from running as script on the kiosk screen.
+            doneThanks.textContent = 'Thank you, ' + job.user
+                + '! Please visit us again — have a good day.';
+
+            doneOverlay.classList.remove('fade-out');
+            doneOverlay.classList.add('show');
+            doneTimer = setTimeout(function() {
+                doneOverlay.classList.add('fade-out');
+                setTimeout(function() {
+                    doneOverlay.classList.remove('show', 'fade-out');
+                }, 600);
+            }, 10000);
+        }
+
+        function handleCompletions(list) {
+            list = list || [];
+            if (!seenFirstPoll) {
+                seenFirstPoll = true;
+                list.forEach(function(j) { announced.add(j.id); });
+                return;
+            }
+            for (var i = 0; i < list.length; i++) {
+                var job = list[i];
+                if (announced.has(job.id)) continue;
+                // Not announced until the paper should actually be out. The
+                // job is marked complete when the data reaches the printer,
+                // and the sheets keep coming after that.
+                if ((job.ready_in_seconds || 0) > 0) continue;
+                announced.add(job.id);
+                showDoneOverlay(job);
+                break;              // one at a time; the rest keep for the next poll
+            }
+            // Without this the set grows for as long as the kiosk is up.
+            if (announced.size > 200) announced = new Set(list.map(function(j) { return j.id; }));
+        }
+
         function pollStatus() {
             if (!polling) return;
             fetch('/kiosk/status')
@@ -799,6 +908,7 @@
                     updateQueueBadge(data.pending_count, data.queue_wait_label);
                     updatePrintingBanner(data.printing || []);
                     updateTimingHint(data.timing);
+                    handleCompletions(data.recently_completed);
                     updateAds(data.ads || []);
 
                     if (data.is_scanned) {

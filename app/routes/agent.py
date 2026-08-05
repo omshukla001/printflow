@@ -338,6 +338,9 @@ def kiosk_status():
     data['queue_wait_label'] = print_timing.format_duration(wait) if wait else None
     data['timing'] = print_timing.per_page_summary()
 
+    from app.services.kiosk import recent_completions
+    data['recently_completed'] = recent_completions()
+
     ads = Advertisement.query.filter_by(is_active=True).order_by(
         Advertisement.display_order.asc(), Advertisement.created_at.desc()).all()
     data['ads'] = [a.to_kiosk_dict() for a in ads]
