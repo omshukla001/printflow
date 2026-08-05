@@ -22,7 +22,10 @@
             <button type="submit" class="btn btn-primary btn-block">Sign In</button>
         </form>
 
-        <p class="auth-footer">
+        <p class="auth-footer" style="margin-top:14px;">
+            <a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
+        </p>
+        <p class="auth-footer" style="margin-top:8px;">
             Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a>
         </p>
         <p class="auth-footer" style="margin-top:8px;">

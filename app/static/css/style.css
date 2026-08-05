@@ -1492,3 +1492,10 @@ tr:hover td { background: var(--gray-50); }
 .offer-note-locked { background: #fff7ed; color: #7c2d12; border: 1px solid #fdba74; }
 .offer-note-locked a { color: #9a3412; font-weight: 800; }
 .chev { display: inline-flex; color: var(--gray-500); }
+.code-input {
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    font-weight: 800;
+    font-size: 20px;
+    text-align: center;
+}

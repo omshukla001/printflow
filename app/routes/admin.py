@@ -19,7 +19,8 @@ from app.services.pricing import calculate_cost, lock_job_cost
 from app.services.print_options import validate_and_apply
 from app.services.file_handler import save_upload, allowed_file, get_extension, CONVERTIBLE_EXTENSIONS
 from app.services import (audit, print_lock, guest as guest_service, offers,
-                          ads as ad_service, stock as stock_service, enrollment)
+                          ads as ad_service, stock as stock_service, enrollment,
+                          mailer)
 from app.services.kiosk import reset_state as reset_kiosk
 
 admin_bp = Blueprint('admin', __name__)
@@ -116,8 +117,10 @@ def dashboard():
     stock_service.check_all()
     today_costs = stock_service.cost_summary(today_start)
 
+    from app.services.password_reset import pending_requests
     return render_template('admin/dashboard.html',
                            alerts=stock_service.active_alerts(),
+                           reset_requests=len(pending_requests()),
                            costs_today=today_costs,
                            revenue_today=revenue_today,
                            revenue_week=revenue_week,
@@ -838,6 +841,44 @@ def revoke_voucher(voucher_id):
 def users():
     all_users = User.query.order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=all_users)
+
+
+@admin_bp.route('/password-resets')
+def password_resets():
+    """Requests waiting on staff, plus the codes currently live."""
+    from app.services import password_reset
+    password_reset.expire_stale()
+    return render_template('admin/password_resets.html',
+                           pending=password_reset.pending_requests(),
+                           live=password_reset.live_codes(),
+                           email_enabled=mailer.is_configured(),
+                           issued_code=request.args.get('code'),
+                           issued_for=request.args.get('for'))
+
+
+@admin_bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
+def issue_password_reset(user_id):
+    """Hand a customer a reset code across the counter.
+
+    The code comes back exactly once, in the redirect, and is never stored in
+    plaintext. Clicking again issues a new one and voids this.
+    """
+    from app.services import password_reset
+    user = User.query.get_or_404(user_id)
+    if user.is_guest:
+        flash('Guest accounts are temporary — there is no password worth resetting.',
+              'error')
+        return redirect(url_for('admin.user_detail', user_id=user_id))
+
+    code, _row = password_reset.issue_at_counter(user, staff_user=current_user)
+    audit.record('password.reset_issued', target_type='user', target_id=user.id,
+                 details={'by': current_user.username})
+    db.session.commit()
+
+    back = request.form.get('back')
+    target = (url_for('admin.password_resets') if back == 'list'
+              else url_for('admin.user_detail', user_id=user_id))
+    return redirect(f'{target}?code={code}&for={user.username}')
 
 
 @admin_bp.route('/users/<int:user_id>')

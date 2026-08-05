@@ -4,7 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 import bcrypt
 from app.extensions import db, limiter
 from app.models import User, utcnow
-from app.services import audit, offers
+from app.services import audit, mailer, offers, password_reset
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -172,3 +172,85 @@ def logout():
 @auth_bp.route('/about')
 def about():
     return render_template('about.html')
+
+
+def _reset_limits():
+    return current_app.config.get('RATE_LIMIT_RESET', '5 per minute; 20 per hour')
+
+
+@auth_bp.route('/forgot', methods=['GET', 'POST'])
+@limiter.limit(_reset_limits, methods=['POST'])
+def forgot_password():
+    """Ask for a reset code."""
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.index'))
+
+    email_on = mailer.is_configured()
+
+    if request.method == 'POST':
+        identifier = request.form.get('identifier', '').strip()
+        if not identifier:
+            flash('Enter your username or email.', 'error')
+            return render_template('auth/forgot.html', email_enabled=email_on)
+
+        delivery, sent = password_reset.request_reset(identifier, ip=request.remote_addr)
+        audit.record('password.reset_request',
+                     details={'identifier': identifier[:80], 'outcome': delivery})
+        db.session.commit()
+
+        # Same answer whichever branch ran, so this form cannot be used to find
+        # out which usernames exist. Only the audit log knows the difference.
+        if sent:
+            flash('If that account exists, a reset code has been emailed to it. '
+                  'The code expires in 30 minutes.', 'success')
+        else:
+            flash('Request received. Ask the shop for your reset code — staff can '
+                  'issue one at the counter.', 'info')
+        return redirect(url_for('auth.reset_password'))
+
+    return render_template('auth/forgot.html', email_enabled=email_on)
+
+
+@auth_bp.route('/reset', methods=['GET', 'POST'])
+@limiter.limit(_reset_limits, methods=['POST'])
+def reset_password():
+    """Enter the code and choose a new password."""
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.index'))
+
+    identifier = request.args.get('user', '').strip()
+
+    if request.method == 'POST':
+        identifier = request.form.get('identifier', '').strip()
+        code = request.form.get('code', '').strip()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        user, row = password_reset.verify(identifier, code)
+        if user is None:
+            # One message for a wrong code, an expired one and an unknown
+            # account alike — anything more specific is a probing oracle.
+            audit.record('password.reset_failed',
+                         details={'identifier': identifier[:80]})
+            db.session.commit()
+            flash('That code is not valid, or it has expired. Ask for a new one.',
+                  'error')
+            return render_template('auth/reset.html', identifier=identifier)
+
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('auth/reset.html', identifier=identifier)
+
+        problems = password_reset.consume(user, row, password, ip=request.remote_addr)
+        if problems:
+            for p in problems:
+                flash(p, 'error')
+            return render_template('auth/reset.html', identifier=identifier)
+
+        audit.record('password.reset_done', target_type='user', target_id=user.id,
+                     details={'delivery': row.delivery})
+        db.session.commit()
+        flash('Password changed. You can log in now.', 'success')
+        return redirect(url_for('auth.login'))
+
+    return render_template('auth/reset.html', identifier=identifier)

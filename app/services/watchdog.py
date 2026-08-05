@@ -97,6 +97,23 @@ def sweep_stock(app):
             log.exception('Watchdog sweep_stock failed: %s', e)
 
 
+def sweep_password_resets(app):
+    """Retire reset codes past their expiry.
+
+    They already fail verification once expired — this is so the admin's list of
+    outstanding codes reflects reality, and so a dead hash is not left sitting
+    in the table.
+    """
+    with app.app_context():
+        try:
+            from app.services import password_reset
+            gone = password_reset.expire_stale()
+            if gone:
+                log.info('Watchdog expired %s password reset code(s)', gone)
+        except Exception as e:
+            log.exception('Watchdog sweep_password_resets failed: %s', e)
+
+
 def sweep_retention(app):
     """Delete stored documents whose job is finished.
 
@@ -229,6 +246,8 @@ def start_scheduler(app):
                   max_instances=1, coalesce=True)
     sched.add_job(lambda: sweep_orphan_files(app), 'interval', hours=6, id='orphan_files',
                   max_instances=1, coalesce=True)
+    sched.add_job(lambda: sweep_password_resets(app), 'interval', minutes=5,
+                  id='password_resets', max_instances=1, coalesce=True)
     sched.start()
     log.info('Watchdog scheduler started')
     return sched

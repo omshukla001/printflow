@@ -107,6 +107,10 @@
         <a href="{{ url_for('admin.kiosks') }}" class="btn btn-outline-primary btn-sm">Kiosks</a>
         <a href="{{ url_for('admin.offers_page') }}" class="btn btn-outline-primary btn-sm">Offers &amp; Referrals</a>
         <a href="{{ url_for('admin.ads') }}" class="btn btn-outline-primary btn-sm">Manage Ads</a>
+        <a href="{{ url_for('admin.password_resets') }}"
+           class="btn btn-sm {{ 'btn-warning' if reset_requests else 'btn-outline-primary' }}">
+            Password resets{% if reset_requests %} ({{ reset_requests }}){% endif %}
+        </a>
         <a href="{{ url_for('admin.audit_log') }}" class="btn btn-outline-primary btn-sm">Audit Log</a>
         <form method="POST" action="{{ url_for('admin.reset_kiosk_route') }}" style="display:inline;"
               onsubmit="return confirm('Rotate the kiosk QR token now?');">

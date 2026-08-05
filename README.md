@@ -56,9 +56,12 @@ The cost is up to ~2s before a job starts printing, which nobody notices.
   quality, collation; saved presets for repeat jobs
 - Live price that matches what is actually charged
 - QR check-in at the kiosk, job history, PDF receipts
+- Password reset by emailed code, or by a code staff issue at the counter when
+  no mail server is configured
 
 ### For the shop
 - **Queue** with drag-to-reorder, priority for customers who have checked in
+- **Password resets** — pending requests, and one-time codes to read out
 - **Pricing** per paper size and colour mode, with separate duplex rates and a
   full change history
 - **Offers** — bulk discount tiers (25+ pages 10% off, and so on) and a referral
@@ -153,6 +156,9 @@ Everything has a working default. The ones worth knowing:
 | `COLOR_PRINTING_ENABLED` | `false` | Show colour options |
 | `FILE_RETENTION_MINUTES` | `0` | Grace period before a printed file is deleted |
 | `PURGE_AFTER_PRINT` | `true` | Delete documents once the print is confirmed |
+| `MAIL_HOST` | — | SMTP host. Blank means reset codes are issued at the counter |
+| `MAIL_FROM` | — | Sender address; required alongside `MAIL_HOST` |
+| `PASSWORD_RESET_TTL_MINUTES` | `30` | How long a reset code stays good for |
 
 ---
 

@@ -150,12 +150,29 @@ class Config:
     # Kiosk token TTL (seconds)
     KIOSK_TOKEN_TTL = _env_int('KIOSK_TOKEN_TTL', 90)
 
+    # Password resets. Email is optional: leave MAIL_HOST blank and the reset
+    # code is issued by staff at the counter instead (admin -> Password resets),
+    # which is the sensible default for a walk-in shop. Set these to have the
+    # code emailed automatically — e.g. a Gmail app password, or AWS SES SMTP
+    # credentials once the account is out of the sandbox.
+    MAIL_HOST = os.environ.get('MAIL_HOST', '')
+    MAIL_PORT = _env_int('MAIL_PORT', 587)
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
+    MAIL_FROM = os.environ.get('MAIL_FROM', '')
+    MAIL_USE_TLS = _env_bool('MAIL_USE_TLS', True)
+    # How long a reset code stays good for.
+    PASSWORD_RESET_TTL_MINUTES = _env_int('PASSWORD_RESET_TTL_MINUTES', 30)
+
     # Rate limits (Flask-Limiter strings)
     RATE_LIMIT_DEFAULT = os.environ.get('RATE_LIMIT_DEFAULT', '200 per minute')
     RATE_LIMIT_LOGIN = os.environ.get('RATE_LIMIT_LOGIN', '10 per minute; 50 per hour')
     RATE_LIMIT_REGISTER = os.environ.get('RATE_LIMIT_REGISTER', '5 per minute; 20 per hour')
     RATE_LIMIT_CHECKIN = os.environ.get('RATE_LIMIT_CHECKIN', '20 per minute; 200 per hour')
     RATE_LIMIT_AGENT = os.environ.get('RATE_LIMIT_AGENT', '600 per minute')
+    # Deliberately tighter than login: a reset code is 8 characters, so the
+    # limiter is what stands between it and a guessing script.
+    RATE_LIMIT_RESET = os.environ.get('RATE_LIMIT_RESET', '5 per minute; 20 per hour')
     RATELIMIT_HEADERS_ENABLED = True
     RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
 

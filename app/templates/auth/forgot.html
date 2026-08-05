@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Forgot Password - PrintFlow{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h1 class="auth-title">PrintFlow</h1>
+        <p class="auth-subtitle">Forgot your password?</p>
+
+        <form method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="identifier">Username or email</label>
+                <input type="text" id="identifier" name="identifier" required autofocus
+                       placeholder="Your username or email" autocomplete="username">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Get a reset code</button>
+        </form>
+
+        <div class="notice" style="margin-top:18px;">
+            {{ icon('info', 18) }}
+            {% if email_enabled %}
+            <span>We will email you an 8-character code. It expires in 30 minutes
+            and can be used once. If the email does not arrive, the shop can
+            issue a code at the counter.</span>
+            {% else %}
+            <span><strong>Codes are issued at the shop.</strong>
+            Send this request, then ask a member of staff for your reset code.
+            They can issue one at the counter — bring the phone you print from.</span>
+            {% endif %}
+        </div>
+
+        <p class="auth-footer">
+            Already have a code? <a href="{{ url_for('auth.reset_password') }}">Enter it here</a>
+        </p>
+        <p class="auth-footer" style="margin-top:8px;">
+            <a href="{{ url_for('auth.login') }}">Back to sign in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
