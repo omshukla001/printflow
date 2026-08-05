@@ -316,7 +316,9 @@
             animation: fadeIn 0.3s ease;
         }
         .done-overlay.show { display: flex; }
-        .done-overlay.fade-out { animation: fadeOut 0.6s ease forwards; }
+        /* Must match DONE_FADE_MS in the script, or the overlay is yanked
+           out mid-fade. */
+        .done-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         .done-inner { text-align: center; animation: scaleIn 0.45s ease; padding: 0 40px; }
 
         /* Tick draws itself: ring sweeps, then the check strokes on. The delay
@@ -876,6 +878,13 @@
         // Jobs already announced. The server keeps reporting a completion for
         // a couple of minutes so a display that polls slowly cannot miss it,
         // which means we have to remember what we have shown.
+        // Long enough to read across the counter, short enough that it is gone
+        // before the next customer is at the screen. The tick finishes drawing
+        // at about 1s, so this leaves roughly three seconds of it just sitting
+        // there being read.
+        var DONE_VISIBLE_MS = 4000;
+        var DONE_FADE_MS = 500;
+
         var announced = new Set();
         // On the very first poll everything recent is backfill, not news —
         // otherwise restarting the browser replays every job from the last two
@@ -901,8 +910,8 @@
                 doneOverlay.classList.add('fade-out');
                 setTimeout(function() {
                     doneOverlay.classList.remove('show', 'fade-out');
-                }, 600);
-            }, 10000);
+                }, DONE_FADE_MS);
+            }, DONE_VISIBLE_MS);
         }
 
         function handleCompletions(list) {
