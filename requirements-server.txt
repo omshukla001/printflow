@@ -14,7 +14,6 @@ flask-limiter
 flask-migrate
 qrcode[pil]
 PyMuPDF
-python-magic
 gunicorn
 bcrypt
 reportlab

@@ -254,6 +254,26 @@ sudo certbot --nginx -d print.yourshop.com
 first, a 50 MB upload dies at nginx with a 413 before Flask sees it. Without the
 second, nginx holds the SSE stream and the customer's job status never updates.
 
+Certbot rewrites this file, moving the `location` block into a new `listen 443
+ssl` server and leaving a redirect behind on port 80. **Leave port 80 open** —
+renewal every 60 days uses an HTTP-01 challenge on it. Closing it does nothing
+for security (everything redirects) and silently breaks renewal until the
+certificate expires.
+
+Once HTTPS is confirmed working, add HSTS inside the `listen 443` server block:
+
+```nginx
+add_header Strict-Transport-Security "max-age=31536000" always;
+```
+
+Then `sudo nginx -t && sudo systemctl reload nginx`.
+
+Without it, a customer's first request of the day is plain HTTP before the 301
+fires, and that request is interceptable on shared wifi. Two cautions: start
+with `max-age=300` and raise it once you are sure, because browsers honour the
+value even if TLS later breaks; and do not add `includeSubDomains` or `preload`
+unless every subdomain is HTTPS and intended to stay that way permanently.
+
 ### 7. Repoint the Pi at EC2
 
 On the Raspberry Pi, edit the agent's server URL and restart:
@@ -275,6 +295,24 @@ cd printflow && git pull && docker compose up -d --build
 ```
 
 The schema migrates itself at startup — there is no separate migration step.
+
+#### One-time: fixing /data ownership
+
+The image runs as uid 10001, not root. Docker seeds a *new* named volume with
+the ownership baked into the image, so a fresh deployment needs nothing extra.
+A volume created by an **older, root-running image** stays owned by root, and
+the app then fails to write uploads into it.
+
+Run this once, on any host that ran a pre-non-root build:
+
+```bash
+docker compose run --rm --user root app chown -R 10001:10001 /data
+docker compose up -d
+```
+
+Symptom if it is skipped: the site loads and login works, but every upload
+fails with a permission error on `/data/uploads` — the database is unaffected,
+since Postgres has its own volume and its own user.
 
 ### Running cost (ap-south-1, approximate)
 

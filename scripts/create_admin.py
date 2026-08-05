@@ -3,6 +3,7 @@
 
 import sys
 import os
+from getpass import getpass
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import bcrypt
@@ -31,10 +32,16 @@ def create_admin():
 
         email = input('Email: ').strip().lower()
         full_name = input('Full name: ').strip()
-        password = input('Password: ').strip()
+        # getpass, not input: this is usually run over SSH, where an echoed
+        # password stays in the terminal scrollback and the session log.
+        password = getpass('Password: ').strip()
 
         if len(password) < 6:
             print('Password must be at least 6 characters.')
+            return
+
+        if getpass('Confirm password: ').strip() != password:
+            print('Passwords do not match.')
             return
 
         pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
