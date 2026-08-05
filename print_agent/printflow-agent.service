@@ -6,9 +6,11 @@ Wants=network-online.target cups.service
 [Service]
 Type=simple
 User=avin
+# install.sh detects the printer and writes these into an env file for you.
+# This template is only for a hand-configured Pi — `lpstat -p` lists the names.
 Environment=SERVER_URL=https://your-domain.com
 Environment=AGENT_KEY=your-agent-key-here
-Environment=DEFAULT_PRINTER=HP-LaserJet-Professional-M1136-MFP
+Environment=DEFAULT_PRINTER=your-printer-name
 ExecStart=/usr/bin/python3 /home/avin/printer_project/print_agent/print_agent.py
 Restart=always
 RestartSec=5

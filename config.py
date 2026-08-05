@@ -87,7 +87,11 @@ class Config:
 
     # CUPS settings (only used when running locally on RPi)
     CUPS_SERVER = 'localhost'
-    DEFAULT_PRINTER = os.environ.get('DEFAULT_PRINTER', 'HP-LaserJet-Professional-M1136-MFP')
+    # The shop's printer. CUPS accumulates a queue per printer ever plugged in,
+    # and submitting to one with no hardware behind it is accepted silently and
+    # never prints — so this names the attached device rather than trusting the
+    # CUPS default. Override per machine with DEFAULT_PRINTER.
+    DEFAULT_PRINTER = os.environ.get('DEFAULT_PRINTER', 'Brother_HL_L2400D')
 
     # Queue polling interval (seconds)
     CUPS_POLL_INTERVAL = _env_int('CUPS_POLL_INTERVAL', 5)
