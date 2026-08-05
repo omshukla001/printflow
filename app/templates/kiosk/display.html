@@ -138,20 +138,6 @@
             text-align: center;
         }
 
-        /* Slide: Mentor */
-        .slide-person-name {
-            font-size: 36px;
-            font-weight: 700;
-            color: #e2e8f0;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-        .slide-person-role {
-            font-size: 18px;
-            color: #64748b;
-            text-align: center;
-        }
-
         /* Slide: Ad */
         .slide-ad {
             text-align: center;
@@ -250,6 +236,21 @@
             font-size: 14px;
             color: #64748b;
             margin-top: 3px;
+        }
+        /* The address sits inside a sentence here rather than on its own line,
+           so it keeps the mono treatment but none of the block spacing. */
+        .howto-url-inline {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+        /* Five steps where there were four — tighten before anything is at
+           risk of running off the bottom on a small counter monitor. */
+        @media (max-height: 820px) {
+            .howto-steps { gap: 16px; }
+            .howto-text-main { font-size: 17px; }
+            .howto-text-sub { font-size: 13px; }
+            .howto-num { width: 30px; height: 30px; font-size: 14px; }
         }
         .howto-url {
             font-family: 'SF Mono', 'Fira Code', monospace;
@@ -485,51 +486,44 @@
                 <div class="slide-builders">Om Shukla &<br>Avinav Gupta</div>
             </div>
 
-            <!-- Slide 2: Mentor -->
-            <div class="slide" data-slide="mentor">
-                <div class="slide-label">Under the Guidance of</div>
-                <div class="slide-person-name">Mr. Girish Babu</div>
-                <div class="slide-person-role">Mentor</div>
-            </div>
-
-            <!-- Slide 3: Thanks -->
-            <div class="slide" data-slide="thanks">
-                <div class="slide-label">Special Thanks</div>
-                <div class="slide-person-name">Prof. Mahalaxmi</div>
-                <div class="slide-person-role">Provided the Printer</div>
-            </div>
-
-            <!-- Slide 4: How to Use -->
+            <!-- Slide 2: How to print from a phone -->
             <div class="slide" data-slide="howto">
-                <div class="slide-label">How to Print</div>
+                <div class="slide-label">Print From Your Phone</div>
                 <div class="slide-howto">
                     <div class="howto-steps">
                         <div class="howto-step">
                             <div class="howto-num">1</div>
                             <div class="howto-text">
-                                <div class="howto-text-main">Open the website on your phone</div>
-                                <div class="howto-url">{{ site_url }}</div>
+                                <div class="howto-text-main">Point your camera at the QR code</div>
+                                <div class="howto-text-sub">Or type it in: <span class="howto-url-inline">{{ site_url }}</span></div>
                             </div>
                         </div>
                         <div class="howto-step">
                             <div class="howto-num">2</div>
                             <div class="howto-text">
-                                <div class="howto-text-main">Register / Log in</div>
-                                <div class="howto-text-sub">Create an account or sign in</div>
+                                <div class="howto-text-main">Sign in &mdash; or tap "Continue as guest"</div>
+                                <div class="howto-text-sub">Google sign-in works too. Registering gets you 20% off your first print</div>
                             </div>
                         </div>
                         <div class="howto-step">
                             <div class="howto-num">3</div>
                             <div class="howto-text">
-                                <div class="howto-text-main">Upload your document</div>
-                                <div class="howto-text-sub">PDF, DOCX, images &mdash; pick copies, color, paper size</div>
+                                <div class="howto-text-main">Upload your file</div>
+                                <div class="howto-text-sub">PDF, Word or a photo &mdash; straight from your phone or Drive</div>
                             </div>
                         </div>
                         <div class="howto-step">
                             <div class="howto-num">4</div>
                             <div class="howto-text">
-                                <div class="howto-text-main">Scan the QR code on this screen</div>
-                                <div class="howto-text-sub">Your document prints automatically!</div>
+                                <div class="howto-text-main">Choose copies and single or double sided</div>
+                                <div class="howto-text-sub">The price and printing time are shown before you confirm</div>
+                            </div>
+                        </div>
+                        <div class="howto-step">
+                            <div class="howto-num">5</div>
+                            <div class="howto-text">
+                                <div class="howto-text-main">Scan this screen's QR again to start printing</div>
+                                <div class="howto-text-sub">Collect your papers when the screen says done</div>
                             </div>
                         </div>
                     </div>
@@ -590,10 +584,11 @@
         let slideIndex = 0;
         let slideTimer = null;
 
-        // Fixed slides: builders(8s), mentor(6s), thanks(6s), howto(10s)
-        // Then each ad gets 6s
-        const FIXED_SLIDES = ['builders', 'mentor', 'thanks', 'howto'];
-        const FIXED_DURATIONS = [8000, 6000, 6000, 10000];
+        // Fixed slides, then each ad gets 6s. The how-to holds far longer than
+        // the credit does: it is five steps somebody is reading and acting on,
+        // not a line to glance at.
+        const FIXED_SLIDES = ['builders', 'howto'];
+        const FIXED_DURATIONS = [6000, 16000];
         const AD_DURATION = 6000;
 
         function getAllSlides() {
