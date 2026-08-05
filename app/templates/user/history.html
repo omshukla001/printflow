@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}History - PrintFlow{% endblock %}
 
 {% block content %}
@@ -47,7 +48,7 @@
 </div>
 {% else %}
 <div class="empty-state">
-    <div class="empty-state-icon">📋</div>
+    <div class="empty-state-icon">{{ icon('clipboard', 42, 1.6) }}</div>
     <div class="empty-state-text">No print history yet</div>
 </div>
 {% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Print Settings - PrintFlow{% endblock %}
 
 {% block content %}
@@ -84,7 +85,7 @@
             <span>Print sides</span>
             <span class="opt-hint">per sheet of paper</span>
         </div>
-        <div class="opt-grid cols-2">
+        <div class="opt-grid cols-2" id="sides-grid">
             <label class="opt-card">
                 <input type="radio" name="sides" value="one-sided" checked>
                 <span class="opt-card-inner">
@@ -95,7 +96,7 @@
                     <span class="opt-meta">₹{{ '%.2f'|format(rate_simplex) }} / sheet</span>
                 </span>
             </label>
-            <label class="opt-card">
+            <label class="opt-card" id="sides-duplex-card">
                 <input type="radio" name="sides" value="two-sided">
                 <span class="opt-card-inner">
                     <span class="opt-icon">
@@ -106,9 +107,14 @@
                 </span>
             </label>
         </div>
-        <p class="text-sm text-muted" style="margin-top:8px;">
+        <p class="text-sm text-muted" id="sides-duplex-hint" style="margin-top:8px;">
             Both sides uses half the paper — usually cheaper for long documents.
         </p>
+        <div class="notice" id="sides-color-note" style="margin-top:8px; display:none;">
+            {{ icon('info', 18) }}
+            <span><strong>Colour prints on one side only.</strong>
+            Double-sided is not available in colour — switch to Black &amp; White to use it.</span>
+        </div>
     </div>
 
     <!-- ===== Paper ===== -->
@@ -138,12 +144,14 @@
                 <input type="radio" name="color_mode" value="bw" checked>
                 <span class="opt-card-inner">
                     <span class="opt-name">Black &amp; White</span>
+                    <span class="opt-meta">from ₹{{ '%.2f'|format(rate_simplex) }} / sheet</span>
                 </span>
             </label>
             <label class="opt-card">
                 <input type="radio" name="color_mode" value="color">
                 <span class="opt-card-inner">
                     <span class="opt-name">Colour</span>
+                    <span class="opt-meta">₹{{ '%.2f'|format(rate_color) }} / sheet · single side</span>
                 </span>
             </label>
         </div>
@@ -164,7 +172,7 @@
     <div class="card" style="background: var(--gray-50);">
         <div class="flex-between" onclick="toggleAdvanced()" style="cursor:pointer; user-select:none;">
             <strong>Advanced options</strong>
-            <span id="adv-chev" style="font-size:18px; transition: transform 0.2s;">▸</span>
+            <span id="adv-chev" class="chev" style="transition: transform 0.2s;">{{ icon('chevron-right', 18) }}</span>
         </div>
         <div id="adv-options" class="hidden" style="margin-top:14px;">
             <div class="form-group mb-8">
@@ -199,7 +207,7 @@
                     <label for="output_order">Order</label>
                     <select id="output_order" name="output_order">
                         <option value="normal">Normal</option>
-                        <option value="reverse">Reverse (last → first)</option>
+                        <option value="reverse">Reverse (last page first)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -236,7 +244,7 @@
     <div class="card mt-12" style="background: var(--gray-50);">
         <div class="flex-between" onclick="togglePresetSave()" style="cursor:pointer; user-select:none;">
             <strong>Save as preset</strong>
-            <span id="preset-chev" style="font-size:18px;">▸</span>
+            <span id="preset-chev" class="chev" style="transition: transform 0.2s;">{{ icon('chevron-right', 18) }}</span>
         </div>
         <div id="preset-save-area" class="hidden" style="margin-top:8px;">
             <input type="text" name="save_preset_name" placeholder="Preset name (e.g. Lecture notes 2-up)"
@@ -252,6 +260,23 @@
         <input type="text" id="lock_password" name="lock_password" required autocomplete="off"
                placeholder="Ask admin for the code"
                style="width:100%; padding:10px 12px; border:2px solid var(--danger); border-radius:8px; font-size:16px;">
+    </div>
+    {% endif %}
+
+    {% if offers_eligible %}
+    <div class="offer-note offer-note-ok">
+        {{ icon('check-circle', 20) }}
+        <span><strong>Discounts apply automatically.</strong>
+        Any bulk discount or voucher on your account is already in the price below —
+        there is no code to enter.</span>
+    </div>
+    {% else %}
+    <div class="offer-note offer-note-locked">
+        {{ icon('lock', 20) }}
+        <span><strong>You are printing as a guest.</strong>
+        Your document will print normally, but offers and discounts are for
+        registered accounts only. <a href="{{ url_for('auth.register') }}">Register free</a>
+        to get them on your next print.</span>
     </div>
     {% endif %}
 
@@ -342,6 +367,35 @@ document.querySelectorAll('.quick-copy').forEach(q => {
 document.querySelectorAll('input[type="radio"][name="sides"], input[type="radio"][name="paper_size"], input[type="radio"][name="color_mode"]')
     .forEach(r => r.addEventListener('change', updateCost));
 
+/* ---- Colour is single-sided only ----
+   The duplex card is removed from the layout entirely rather than greyed out,
+   so there is nothing to click and nothing to wonder about. */
+function syncSidesForColour() {
+    const duplex = document.querySelector('input[name="sides"][value="two-sided"]');
+    const simplex = document.querySelector('input[name="sides"][value="one-sided"]');
+    const card = document.getElementById('sides-duplex-card');
+    const grid = document.getElementById('sides-grid');
+    const note = document.getElementById('sides-color-note');
+    const hint = document.getElementById('sides-duplex-hint');
+    if (!duplex || !card) return false;
+
+    const isColour = val('color_mode') === 'color';
+    duplex.disabled = isColour;
+    card.style.display = isColour ? 'none' : '';
+    if (grid) grid.classList.toggle('cols-1', isColour);
+    if (note) note.style.display = isColour ? '' : 'none';
+    if (hint) hint.style.display = isColour ? 'none' : '';
+    if (isColour && duplex.checked) {
+        simplex.checked = true;   // the server would force this anyway
+        return true;              // caller re-prices
+    }
+    return false;
+}
+document.querySelectorAll('input[type="radio"][name="color_mode"]').forEach(r => {
+    r.addEventListener('change', () => { if (syncSidesForColour()) updateCost(); });
+});
+syncSidesForColour();
+
 /* ---- Live cost ---- */
 let costDebounce = null;
 function updateCost() {
@@ -416,6 +470,7 @@ function closePreview() {
             document.getElementById('adv-options').classList.remove('hidden');
             document.getElementById('adv-chev').style.transform = 'rotate(90deg)';
         }
+        syncSidesForColour();   // a colour preset can't keep a duplex setting
         updateCost();
     });
 })();

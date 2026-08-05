@@ -35,7 +35,9 @@ DEFAULTS = {
     'referral_reward_days': '0',        # voucher lifetime; 0 = never expires
     'bulk_enabled': '1',
     'offers_stack': '1',                # allow bulk + voucher on one order
-    'offers_headline': '🎉 Grand Opening Offers',
+    # Plain text — the page draws its own icon. Emoji here would render as an
+    # empty square on any device whose font lacks the glyph, the kiosk included.
+    'offers_headline': 'Grand Opening Offers',
 }
 
 _CODE_ALPHABET = string.ascii_uppercase + string.digits
@@ -127,7 +129,13 @@ def slots_left(settings=None):
 
 def grant_voucher(user, source, percent, max_discount, description,
                   expires_days=0, commit=True):
-    """Put a single-use discount into a user's account."""
+    """Put a single-use discount into a user's account.
+
+    Returns None for a guest — a temporary walk-in account has nowhere to keep
+    a reward, so it is never granted one in the first place.
+    """
+    if not is_eligible(user):
+        return None
     voucher = DiscountVoucher(
         user_id=user.id,
         source=source,
@@ -215,6 +223,13 @@ def qualify_referral(job):
         f"Referral reward — {settings['referral_referrer_percent']}% off your next print",
         expires_days=settings['referral_reward_days'], commit=False,
     )
+    if voucher is None:
+        # Inviter is a guest account — qualified, but there is nobody to pay.
+        db.session.commit()
+        log.info('Referral %s qualified but %s is a guest — no reward issued',
+                 referral.id, referrer.username)
+        return referral
+
     db.session.flush()
     referral.reward_voucher_id = voucher.id
     db.session.commit()
@@ -283,6 +298,21 @@ def expire_stale_vouchers():
 
 # --- quoting --------------------------------------------------------------
 
+def is_eligible(user):
+    """Whether this customer can earn or spend an offer.
+
+    Offers are for registered accounts only. A walk-in can still print — the
+    counter creates them a temporary guest account — but a guest earns no bulk
+    discount, no voucher and no referral reward. Anonymous callers (no user at
+    all) are treated the same way.
+    """
+    if user is None:
+        return False
+    if not getattr(user, 'is_authenticated', True):
+        return False
+    return not bool(getattr(user, 'is_guest', False))
+
+
 def _capped(amount, cap):
     amount = round(amount, 2)
     if cap:
@@ -308,8 +338,14 @@ def quote(base_cost, pages, user=None, voucher='auto'):
         'voucher_amount': 0.0,
         'lines': [],
         'label': None,
+        'eligible': True,
     }
     if base_cost <= 0:
+        return result
+
+    # Guests and walk-ins print at full price — no tier, no voucher.
+    if not is_eligible(user):
+        result['eligible'] = False
         return result
 
     if voucher == 'auto':
@@ -352,7 +388,7 @@ def quote(base_cost, pages, user=None, voucher='auto'):
         'voucher': voucher if voucher_amount > 0 else None,
         'voucher_amount': voucher_amount,
         'lines': lines,
-        'label': '; '.join(f"{l['label']} (−₹{l['amount']:.2f})" for l in lines) or None,
+        'label': '; '.join(f"{l['label']} (-₹{l['amount']:.2f})" for l in lines) or None,
     })
     return result
 
@@ -408,11 +444,29 @@ def release_voucher(job, commit=True):
 
 
 def user_summary(user):
-    """Everything the dashboard needs to show a user their offers."""
+    """Everything the dashboard needs to show a user their offers.
+
+    A guest still gets the tier list — so they can see what registering would
+    be worth — but no code, no vouchers, and `eligible` False so the page can
+    say plainly that the discounts need an account.
+    """
     settings = get_settings()
+    if not is_eligible(user):
+        return {
+            'settings': settings,
+            'eligible': False,
+            'code': None,
+            'vouchers': [],
+            'tiers': active_tiers() if settings['bulk_enabled'] else [],
+            'referral_count': 0,
+            'referral_qualified': 0,
+            'slots_left': slots_left(settings),
+        }
+
     referrals = Referral.query.filter_by(referrer_id=user.id).all()
     return {
         'settings': settings,
+        'eligible': True,
         'code': ensure_referral_code(user),
         'vouchers': available_vouchers(user),
         'tiers': active_tiers() if settings['bulk_enabled'] else [],

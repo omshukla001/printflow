@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Dashboard - PrintFlow{% endblock %}
 
 {% block content %}
@@ -33,7 +34,7 @@
     </div>
     <div style="text-align:right;">
         <div class="balance-label">Rate</div>
-        <div class="text-sm" style="color:var(--gray-600); font-weight:600;">
+        <div class="text-sm" style="color:var(--gray-800); font-weight:700;">
             ₹{{ '%.2f'|format(rate_simplex) }} single · ₹{{ '%.2f'|format(rate_duplex) }} double
         </div>
     </div>
@@ -47,7 +48,7 @@
 
 <div class="sec-head">
     <h3>Active jobs</h3>
-    <a href="{{ url_for('user.history') }}">View history →</a>
+    <a href="{{ url_for('user.history') }}" class="link-arrow">View history {{ icon('arrow-right', 14) }}</a>
 </div>
 
 {% if active_jobs %}
@@ -96,59 +97,109 @@
 {% endif %}
 
 {% if offers %}
-<div class="card mt-16">
-    <div class="card-title mb-8">{{ offers.settings.offers_headline }}</div>
+<div class="card offers-card mt-16">
+    <div class="offers-head">
+        <div class="offers-head-icon">{{ icon('sparkle', 26, 1.8) }}</div>
+        <div>
+            <div class="offers-eyebrow">{{ 'Offers for you' if offers.eligible else 'Members only' }}</div>
+            <div class="offers-title">{{ offers.settings.offers_headline }}</div>
+        </div>
+    </div>
+
+    <div class="offers-body">
+    {% if offers.eligible %}
+    <div class="offers-howto">
+        <div class="offers-howto-title">{{ icon('check-circle', 20) }} How to get your discount</div>
+        <ol class="offers-steps">
+            <li>Upload your document and choose your print options.</li>
+            <li>The discount is applied <strong>automatically</strong> — the price you see is the price you pay.</li>
+            <li>Scan the kiosk QR at the shop and collect your print.</li>
+        </ol>
+        <div class="offers-howto-note">No coupon codes. Nothing to claim at the counter.</div>
+    </div>
+    {% else %}
+    <div class="offers-howto offers-howto-locked">
+        <div class="offers-howto-title">{{ icon('lock', 20) }} Offers need a registered account</div>
+        <p class="offers-locked-lead">
+            You can print right now as a guest — but discounts, vouchers and
+            referral rewards are for registered accounts only.
+        </p>
+        <ol class="offers-steps">
+            <li>Create a free account — it takes a few seconds.</li>
+            <li>Your discounts then apply <strong>automatically</strong> on every print.</li>
+        </ol>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-block mt-16">
+            {{ icon('user-plus', 18) }} Register free &amp; unlock offers
+        </a>
+    </div>
+    {% endif %}
 
     {% if offers.vouchers %}
-    <div class="mb-8">
+    <div>
+        <div class="offers-section-title">{{ icon('ticket', 16) }} Your vouchers</div>
         {% for v in offers.vouchers %}
-        <div class="flex-between" style="padding:10px 12px; border:1px solid #a7f3d0; background:var(--success-bg); border-radius:var(--radius); margin-bottom:6px;">
-            <div>
-                <div style="font-weight:700; font-size:14px; color:#065f46;">{{ v.discount_percent|round(0)|int }}% OFF</div>
-                <div class="text-sm" style="color:#047857;">{{ v.description }}</div>
+        <div class="voucher">
+            <div class="voucher-amount">
+                <div class="voucher-percent">{{ v.discount_percent|round(0)|int }}%</div>
+                <div class="voucher-off">off</div>
             </div>
-            <div class="text-sm text-muted" style="text-align:right;">
-                {% if v.max_discount %}up to ₹{{ v.max_discount|round(0)|int }}{% endif %}
-                {% if v.expires_at %}<br>till {{ v.expires_at.strftime('%d %b') }}{% endif %}
+            <div class="voucher-detail">
+                <div class="voucher-desc">{{ v.description }}</div>
+                <div class="voucher-meta">
+                    {% if v.max_discount %}Up to ₹{{ v.max_discount|round(0)|int }} off{% endif %}
+                    {% if v.max_discount and v.expires_at %} · {% endif %}
+                    {% if v.expires_at %}Valid till {{ v.expires_at.strftime('%d %b') }}{% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
-        <div class="text-sm text-muted">Applied automatically on your next print.</div>
+        <div class="voucher-auto">{{ icon('check', 14) }} Applied automatically on your next print — no code to type.</div>
     </div>
     {% endif %}
 
     {% if offers.tiers %}
-    <div class="mb-8">
-        <div class="text-sm" style="font-weight:700; margin-bottom:4px;">📄 Bulk printing discounts</div>
+    <div>
+        <div class="offers-section-title">{{ icon('layers', 16) }} Print more, pay less</div>
         {% for tier in offers.tiers %}
-        <div class="text-sm text-muted">
-            {{ tier.min_pages }}+ pages → {{ tier.discount_percent|round(0)|int }}% OFF{% if tier.max_discount %} (max ₹{{ tier.max_discount|round(0)|int }}){% endif %}
+        <div class="tier-row">
+            <span class="tier-pages">{{ tier.min_pages }}+ pages</span>
+            <span class="tier-arrow">{{ icon('arrow-right', 15) }}</span>
+            {% if tier.max_discount %}<span class="tier-cap">max ₹{{ tier.max_discount|round(0)|int }}</span>{% endif %}
+            <span class="tier-badge">{{ tier.discount_percent|round(0)|int }}% OFF</span>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {% if offers.settings.referral_enabled and (offers.slots_left is none or offers.slots_left > 0) %}
-    <div style="border-top:1px solid var(--gray-200); padding-top:10px;">
-        <div class="text-sm" style="font-weight:700; margin-bottom:4px;">🎁 Invite a friend</div>
-        <div class="text-sm text-muted mb-8">
-            They get {{ offers.settings.referral_friend_percent }}% off their first print.
-            You get {{ offers.settings.referral_referrer_percent }}% off your next print once they print
-            (up to ₹{{ offers.settings.referral_max_discount }} each).
-            {% if offers.slots_left is not none %}Only {{ offers.slots_left }} spots left.{% endif %}
+    {% if offers.eligible and offers.settings.referral_enabled
+          and (offers.slots_left is none or offers.slots_left > 0) %}
+    <div>
+        <div class="offers-section-title">
+            {{ icon('gift', 16) }} Invite a friend
+            {% if offers.slots_left is not none %}
+            <span class="offers-slots">{{ offers.slots_left }} spots left</span>
+            {% endif %}
         </div>
-        <div class="flex gap-8" style="align-items:center; flex-wrap:wrap;">
-            <code id="ref-code" style="font-size:18px; font-weight:800; letter-spacing:2px; padding:6px 12px; background:var(--gray-100); border-radius:var(--radius);">{{ offers.code }}</code>
-            <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyRef(this)">Copy invite link</button>
+        <div class="referral-panel">
+            <div class="referral-copy">
+                <strong>They get {{ offers.settings.referral_friend_percent }}% off</strong> their first print.
+                <strong>You get {{ offers.settings.referral_referrer_percent }}% off</strong> your next one
+                as soon as they print — up to ₹{{ offers.settings.referral_max_discount }} each.
+            </div>
+            <div class="referral-code-row">
+                <code id="ref-code" class="referral-code">{{ offers.code }}</code>
+                <button type="button" class="btn btn-primary btn-sm" onclick="copyRef(this)">Copy invite link</button>
+            </div>
+            {% if offers.referral_qualified %}
+            <div class="referral-progress">
+                {{ icon('trophy', 15) }} {{ offers.referral_qualified }} of your {{ offers.referral_count }} invites have printed.
+            </div>
+            {% endif %}
         </div>
-        {% if offers.referral_qualified %}
-        <div class="text-sm text-muted" style="margin-top:6px;">
-            {{ offers.referral_qualified }} of your {{ offers.referral_count }} invites have printed.
-        </div>
-        {% endif %}
         <input type="hidden" id="ref-link" value="{{ share_url }}">
     </div>
     {% endif %}
+    </div>
 </div>
 
 <script>

@@ -11,7 +11,7 @@ from app.services.receipts import generate_receipt
 from app.services.sse import stream_job_status
 from app.services import offers, ads as ad_service
 from app.services.print_options import (count_pages_in_range, normalize_page_ranges,
-                                        color_enabled, allowed_paper)
+                                        color_enabled, allowed_paper, resolve_sides)
 
 api_bp = Blueprint('api', __name__)
 
@@ -111,7 +111,9 @@ def calculate_price():
     # forced to mono on submit, so quote the mono rate here too.
     if color == 'color' and not color_enabled():
         color = 'bw'
-    sides = request.args.get('sides', 'one-sided')
+    # Colour is simplex-only, so a colour job asking for duplex is quoted — and
+    # charged — as one-sided.
+    sides = resolve_sides(color, request.args.get('sides', 'one-sided'))
     page_set = request.args.get('page_set', 'all')
     page_ranges_raw = request.args.get('page_ranges', '').strip() or None
     range_error = None
@@ -151,6 +153,7 @@ def calculate_price():
         'sheets': sheets,
         'rate': price,
         'color_mode': color,
+        'sides': sides,
         'effective_pages': base_pages,
         'normalized_range': page_ranges,
         'range_error': range_error,

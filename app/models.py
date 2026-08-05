@@ -56,13 +56,15 @@ class User(UserMixin, db.Model):
     def is_active(self):
         if not self.is_active_user:
             return False
-        if self.is_guest and self.guest_expires_at and self.guest_expires_at < utcnow():
+        expires = as_aware(self.guest_expires_at)
+        if self.is_guest and expires and expires < utcnow():
             return False
         return True
 
     @property
     def is_locked(self):
-        return bool(self.locked_until and self.locked_until > utcnow())
+        locked_until = as_aware(self.locked_until)
+        return bool(locked_until and locked_until > utcnow())
 
 
 class PrintJob(db.Model):

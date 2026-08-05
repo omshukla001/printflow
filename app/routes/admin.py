@@ -809,6 +809,10 @@ def grant_voucher():
     note = (request.form.get('description') or '').strip()[:200]
     voucher = offers.grant_voucher(user, 'manual', percent, cap,
                                    note or f'{percent:g}% off — from the shop')
+    if voucher is None:
+        flash(f'{user.full_name} is a walk-in guest — offers are for registered '
+              f'accounts only. Ask them to register first.', 'error')
+        return redirect(url_for('admin.offers_page'))
     audit.record('offers.voucher_grant', target_type='user', target_id=user.id,
                  details={'percent': percent, 'cap': cap, 'voucher': voucher.id})
     db.session.commit()

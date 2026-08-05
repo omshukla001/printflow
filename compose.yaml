@@ -1,0 +1,48 @@
+# PrintFlow on a single box (AWS EC2, or any Docker host).
+#
+# The app image is the same Dockerfile the container hosts use. Postgres runs
+# alongside it rather than as a managed service — fine for one shop, and the
+# only thing to change if you later move to RDS is DATABASE_URL in .env.
+#
+#   docker compose up -d --build
+#   docker compose exec app python scripts/create_admin.py
+#
+# Put nginx + certbot in front of port 5000; kiosk enrollment refuses plain HTTP.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # Parsed out of the DATABASE_URL you generated in .env, so the two can
+      # never drift apart.
+      POSTGRES_USER: printflow
+      POSTGRES_DB: printflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    # Bind to loopback only — nginx is the front door, and the app itself
+    # speaks plain HTTP.
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      # Uploads, previews and receipts. A job's file must survive until the Pi
+      # has fetched it, so this cannot live on the container filesystem.
+      - printflow_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  printflow_data:

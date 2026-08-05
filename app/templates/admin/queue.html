@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Print Queue - PrintFlow{% endblock %}
 
 {% block content %}
@@ -59,17 +60,17 @@
             <form method="POST" action="{{ url_for('admin.cancel_job', job_id=job.id) }}" style="display:inline"
                   onsubmit="return confirm('Cancel {{ job.filename|e }}?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+                <button type="submit" class="btn btn-danger btn-sm" aria-label="Cancel">{{ icon('x', 15) }}</button>
             </form>
             {% elif job.status == 'printing' %}
             <form method="POST" action="{{ url_for('admin.mark_complete', job_id=job.id) }}" style="display:inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-success btn-sm">✓ Done</button>
+                <button type="submit" class="btn btn-success btn-sm">{{ icon('check', 15) }} Done</button>
             </form>
             <form method="POST" action="{{ url_for('admin.cancel_job', job_id=job.id) }}" style="display:inline"
                   onsubmit="return confirm('Cancel printing job {{ job.filename|e }}?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+                <button type="submit" class="btn btn-danger btn-sm" aria-label="Cancel">{{ icon('x', 15) }}</button>
             </form>
             {% endif %}
         </div>
@@ -78,7 +79,7 @@
 </div>
 {% else %}
 <div class="empty-state">
-    <div class="empty-state-icon">✓</div>
+    <div class="empty-state-icon">{{ icon('check-circle', 42, 1.6) }}</div>
     <div class="empty-state-text">Queue is empty</div>
 </div>
 {% endif %}

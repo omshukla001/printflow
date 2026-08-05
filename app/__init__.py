@@ -121,13 +121,15 @@ def create_app(config_class=Config):
 
 
 # (paper, colour, simplex sheet price, duplex sheet price)
+# Colour is simplex-only, so its duplex rate is never reached — it mirrors the
+# simplex rate so any fallback path still charges the right amount.
 PRICING_DEFAULTS = [
-    ('A4', 'bw', 1.5, 2.0),
-    ('A4', 'color', 15.0, 20.0),
+    ('A4', 'bw', 2.0, 3.0),
+    ('A4', 'color', 5.0, 5.0),
     ('A3', 'bw', 3.0, 4.0),
-    ('A3', 'color', 25.0, 32.0),
-    ('Letter', 'bw', 1.5, 2.0),
-    ('Letter', 'color', 15.0, 20.0),
+    ('A3', 'color', 25.0, 25.0),
+    ('Letter', 'bw', 2.0, 3.0),
+    ('Letter', 'color', 5.0, 5.0),
 ]
 
 

@@ -18,6 +18,10 @@ ALLOWED_OUTPUT_ORDER = ('normal', 'reverse')
 ALLOWED_ORIENTATION = ('auto', 'portrait', 'landscape')
 ALLOWED_QUALITY = ('draft', 'normal', 'high')
 
+# Colour prints on one side only — the colour path has no duplex, so a colour
+# job is always forced to simplex no matter what the form asked for.
+COLOR_SIMPLEX_ONLY = True
+
 # CUPS orientation-requested IPP values
 _ORIENTATION_IPP = {
     'portrait': '3',
@@ -59,6 +63,18 @@ def allowed_paper():
     except Exception:
         pass
     return ALLOWED_PAPER
+
+
+def resolve_sides(color_mode, sides):
+    """The sides setting a job will actually print with.
+
+    Colour is simplex-only, so asking for duplex in colour quietly resolves to
+    one-sided. Used by validation, the live quote and the CUPS options builder
+    so all three agree on what is charged and what is printed.
+    """
+    if COLOR_SIMPLEX_ONLY and color_mode == 'color':
+        return 'one-sided'
+    return sides
 
 
 def normalize_page_ranges(text, max_page=None):
@@ -182,6 +198,9 @@ def validate_and_apply(form, job):
     if job.sides not in ALLOWED_SIDES:
         errors.append(('sides', 'Invalid sides setting.'))
         job.sides = 'one-sided'
+    # Colour is simplex-only. Enforced here as well as in the template so a
+    # hand-crafted POST can't book a duplex colour job at the duplex rate.
+    job.sides = resolve_sides(job.color_mode, job.sides)
 
     # Page ranges
     try:
@@ -271,7 +290,7 @@ def to_cups_options(opts):
     paper = g('paper_size', 'A4')
     cups_opts['media'] = paper if paper in ('A4', 'A3', 'Letter') else 'A4'
 
-    sides = g('sides', 'one-sided')
+    sides = resolve_sides(color_mode, g('sides', 'one-sided'))
     cups_opts['sides'] = 'two-sided-long-edge' if sides == 'two-sided' else 'one-sided'
 
     page_ranges = g('page_ranges')

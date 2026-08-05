@@ -1,7 +1,7 @@
 """Pricing calculation service."""
 from app.extensions import db
 from app.models import Pricing
-from app.services.print_options import count_pages_in_range
+from app.services.print_options import count_pages_in_range, resolve_sides
 
 
 def get_price_per_page(paper_size, color_mode, sides='one-sided'):
@@ -15,7 +15,7 @@ def get_price_per_page(paper_size, color_mode, sides='one-sided'):
         paper_size=paper_size, color_mode=color_mode, is_active=True
     ).first()
     if pricing:
-        return pricing.price_for_sides(sides)
+        return pricing.price_for_sides(resolve_sides(color_mode, sides))
     return 0.0
 
 
@@ -43,11 +43,11 @@ def calculate_job_cost(job):
     nup = job.pages_per_sheet or 1
     sheets = (pages_to_print + nup - 1) // nup
 
-    if (job.sides or 'one-sided') == 'two-sided':
+    sides = resolve_sides(job.color_mode, job.sides or 'one-sided')
+    if sides == 'two-sided':
         sheets = (sheets + 1) // 2
 
-    price = get_price_per_page(job.paper_size, job.color_mode,
-                               job.sides or 'one-sided')
+    price = get_price_per_page(job.paper_size, job.color_mode, sides)
     return round(price * sheets, 2)
 
 

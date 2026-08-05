@@ -87,9 +87,19 @@ venv/bin/python scripts/create_admin.py
 venv/bin/python run.py
 ```
 
+For AWS EC2, `compose.yaml` runs the app and Postgres on one instance:
+
+```bash
+git clone https://github.com/omshukla001/printflow.git && cd printflow
+# write .env (see DEPLOY.md), then:
+docker compose up -d --build
+docker compose exec app python scripts/create_admin.py
+```
+
 For Render, `render.yaml` is a one-click blueprint: web service, 5 GB disk at
-`/data`, and Postgres. See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough,
-including why serverless hosts cannot run this.
+`/data`, and Postgres. See **[DEPLOY.md](DEPLOY.md)** for both walkthroughs —
+including TLS, which kiosk enrollment requires — and why serverless hosts
+cannot run this.
 
 The schema migrates itself at startup — there is no separate migration step.
 

@@ -146,6 +146,150 @@ idle so the agent's polls would hit a cold container.
 
 ---
 
+## Deploy on AWS EC2
+
+One instance runs the whole server. The Pi keeps printing; it just dials out to
+EC2 instead of to a machine on the shop LAN.
+
+### 1. Launch the instance
+
+| Setting | Value |
+|---|---|
+| AMI | Ubuntu Server 24.04 LTS |
+| Type | `t3.small` (2 GB RAM) — LibreOffice needs the headroom, `t3.micro` will OOM on a DOCX |
+| Storage | 20 GB gp3 |
+| Security group | 22 from **your IP only**, 80 and 443 from `0.0.0.0/0` |
+
+Give it an **Elastic IP**. Without one the address changes on every stop/start,
+and the kiosk QR codes — which encode `SITE_URL` — would all break.
+
+### 2. Point a domain at it
+
+You need a real hostname, not the raw IP. Kiosk enrollment **refuses to run over
+plain HTTP** (`config.py`, `ALLOW_INSECURE_ENROLL`), and you cannot get a
+certificate for an IP address. Add an A record for e.g. `print.yourshop.com`
+pointing at the Elastic IP.
+
+### 3. Install Docker and clone
+
+```bash
+ssh -i your-key.pem ubuntu@print.yourshop.com
+
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
+sudo usermod -aG docker ubuntu && newgrp docker
+
+git clone https://github.com/omshukla001/printflow.git
+cd printflow
+```
+
+### 4. Write the environment file
+
+```bash
+PGPW=$(openssl rand -hex 16)
+cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+SITE_URL=https://print.yourshop.com
+CLOUD_MODE=true
+FLASK_ENV=production
+DATA_DIR=/data
+POSTGRES_PASSWORD=$PGPW
+DATABASE_URL=postgresql://printflow:$PGPW@db:5432/printflow
+PAPER_SIZES=A4
+COLOR_PRINTING_ENABLED=false
+EOF
+chmod 600 .env
+```
+
+`POSTGRES_PASSWORD` and the password inside `DATABASE_URL` must match — the
+snippet above generates one value and uses it in both. `.env` is gitignored;
+keep it that way.
+
+`SECRET_KEY` is mandatory — the app refuses to boot in production with the
+default (`Config.validate`). `SITE_URL` must be the **https** address, because
+it is what the kiosk QR encodes and what the phone will open.
+
+### 5. Bring it up
+
+`compose.yaml` in the repo root runs the app image alongside Postgres, with a
+named volume at `/data` for uploads, previews and receipts:
+
+```bash
+docker compose up -d --build
+docker compose logs -f app        # watch it migrate its own schema and start
+```
+
+Create your admin login:
+
+```bash
+docker compose exec app python scripts/create_admin.py
+```
+
+### 6. TLS in front
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+sudo tee /etc/nginx/sites-available/printflow >/dev/null <<'EOF'
+server {
+    listen 80;
+    server_name print.yourshop.com;
+    client_max_body_size 60M;          # uploads are capped at 50 MB
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;           # SSE job status must stream, not buffer
+        proxy_read_timeout 200s;       # streams are held up to 120s
+    }
+}
+EOF
+sudo ln -sf /etc/nginx/sites-available/printflow /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d print.yourshop.com
+```
+
+`client_max_body_size` and `proxy_buffering off` are not optional. Without the
+first, a 50 MB upload dies at nginx with a 413 before Flask sees it. Without the
+second, nginx holds the SSE stream and the customer's job status never updates.
+
+### 7. Repoint the Pi at EC2
+
+On the Raspberry Pi, edit the agent's server URL and restart:
+
+```bash
+sudo systemctl edit printflow-agent      # set Environment=SERVER_URL=https://print.yourshop.com
+sudo systemctl restart printflow-agent
+journalctl -u printflow-agent -f         # expect heartbeats, not connection-refused
+```
+
+Then in the admin UI, **Kiosks → Add kiosk** for a one-time code, and enroll the
+Pi against the new server. Each kiosk gets its own key, so the old one can be
+revoked without touching anything else.
+
+### 8. Redeploying later
+
+```bash
+cd printflow && git pull && docker compose up -d --build
+```
+
+The schema migrates itself at startup — there is no separate migration step.
+
+### Running cost (ap-south-1, approximate)
+
+| Item | USD / month |
+|---|---|
+| t3.small on-demand | 15 |
+| 20 GB gp3 | 1.60 |
+| Elastic IP (while attached) | 0 |
+
+A 1-year Compute Savings Plan takes the instance to roughly $9. RDS instead of
+the Postgres container adds about $15 — worth it for automated backups once the
+shop has real billing history in there.
+
+---
+
 ## Railway / Fly.io instead
 
 The `Dockerfile` is portable; only the orchestration differs.

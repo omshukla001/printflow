@@ -54,7 +54,9 @@ def dashboard():
                            rate_duplex=get_price_per_page(offered[0], 'bw', 'two-sided'),
                            ads=active_ads,
                            offers=summary,
-                           share_url=f"{share_base}{url_for('auth.register')}?ref={summary['code']}")
+                           share_url=(f"{share_base}{url_for('auth.register')}?ref={summary['code']}"
+                                      if summary['code'] else
+                                      f"{share_base}{url_for('auth.register')}"))
 
 
 @user_bp.route('/upload', methods=['GET', 'POST'])
@@ -209,6 +211,8 @@ def configure_job(job_id):
     paper_sizes = allowed_paper()
     rate_simplex = get_price_per_page(paper_sizes[0], 'bw', 'one-sided')
     rate_duplex = get_price_per_page(paper_sizes[0], 'bw', 'two-sided')
+    # Colour is single-sided only, so there is one colour rate to show.
+    rate_color = get_price_per_page(paper_sizes[0], 'color', 'one-sided')
 
     return render_template('user/configure.html',
                            job=job,
@@ -221,6 +225,8 @@ def configure_job(job_id):
                            paper_sizes=paper_sizes,
                            rate_simplex=rate_simplex,
                            rate_duplex=rate_duplex,
+                           rate_color=rate_color,
+                           offers_eligible=offers.is_eligible(current_user),
                            lock_enabled=lock_enabled)
 
 
