@@ -51,6 +51,7 @@ COLUMN_ADDITIONS = [
     ('print_jobs', 'fit_to_page', 'BOOLEAN DEFAULT 0'),
     ('print_jobs', 'print_quality', "VARCHAR(10) DEFAULT 'normal'"),
     ('print_jobs', 'collate', 'BOOLEAN DEFAULT 1'),
+    ('print_jobs', 'printing_started_at', 'DATETIME'),
 
     # kiosk_state
     ('kiosk_state', 'token_expires_at', 'DATETIME'),

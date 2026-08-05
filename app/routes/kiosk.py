@@ -13,7 +13,7 @@ from app.services.kiosk import (
 from app.services.queue_manager import fail_job
 from app.services.qr_service import generate_qr_png
 from app.services.pricing import lock_job_cost
-from app.services import audit, print_lock
+from app.services import audit, print_lock, print_timing
 
 
 def _get_site_url():
@@ -73,10 +73,10 @@ def status():
     from app.models import Advertisement
     data = get_status()
     data['print_locked'] = print_lock.is_enabled()
-    pending_count = PrintJob.query.filter(
+    pending_jobs = PrintJob.query.filter(
         PrintJob.status.in_(['queued', 'prioritized', 'ready_to_print'])
-    ).count()
-    data['pending_count'] = pending_count
+    ).all()
+    data['pending_count'] = len(pending_jobs)
     printing_jobs = PrintJob.query.filter(PrintJob.status == 'printing').all()
     if printing_jobs:
         user_ids = set(j.user_id for j in printing_jobs)
@@ -84,9 +84,23 @@ def status():
         data['printing'] = [{
             'user': users.get(j.user_id, 'Unknown'),
             'filename': j.filename,
+            'pages': print_timing.impressions(j),
+            'sides': j.sides or 'one-sided',
+            # The display counts down locally from this rather than polling for
+            # it, so a slow poll cannot make the number jump backwards.
+            'remaining_seconds': round(print_timing.remaining_seconds(j)),
+            'total_seconds': round(print_timing.estimate_seconds(j)),
         } for j in printing_jobs]
     else:
         data['printing'] = []
+
+    # Everything queued behind what is printing now — what a customer walking
+    # up to the kiosk actually has to wait.
+    wait = (print_timing.queue_seconds(pending_jobs)
+            + sum(print_timing.remaining_seconds(j) for j in printing_jobs))
+    data['queue_wait_seconds'] = round(wait)
+    data['queue_wait_label'] = print_timing.format_duration(wait) if wait else None
+    data['timing'] = print_timing.per_page_summary()
     ads = Advertisement.query.filter_by(is_active=True).order_by(Advertisement.created_at.desc()).all()
     data['ads'] = [{
         'id': a.id,

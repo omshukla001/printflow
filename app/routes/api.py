@@ -9,7 +9,7 @@ from app.services.queue_manager import get_ordered_queue
 from app.services.pricing import calculate_cost, get_price_per_page
 from app.services.receipts import generate_receipt
 from app.services.sse import stream_job_status
-from app.services import offers, ads as ad_service
+from app.services import offers, ads as ad_service, print_timing
 from app.services.print_options import (count_pages_in_range, normalize_page_ranges,
                                         color_enabled, allowed_paper, resolve_sides)
 
@@ -134,6 +134,9 @@ def calculate_price():
         sheets = (total_pages + nup - 1) // nup
     else:
         sheets = total_pages
+    # Sides imaged, captured before duplex halves the sheet count. Printer time
+    # scales with impressions, not sheets — a duplex sheet is two passes.
+    impression_count = sheets
     if sides == 'two-sided':
         sheets = (sheets + 1) // 2
 
@@ -157,6 +160,9 @@ def calculate_price():
         'effective_pages': base_pages,
         'normalized_range': page_ranges,
         'range_error': range_error,
+        'print_time_seconds': round(print_timing.estimate_for(impression_count, sides)),
+        'print_time_label': print_timing.format_duration(
+            print_timing.estimate_for(impression_count, sides)),
     })
 
 

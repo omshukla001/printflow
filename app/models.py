@@ -105,6 +105,10 @@ class PrintJob(db.Model):
     error_message = db.Column(db.Text, nullable=True)
     scanned_at = db.Column(db.DateTime, nullable=True)
     submitted_at = db.Column(db.DateTime, default=utcnow, index=True)
+    # When the sheet actually started moving, as distinct from printed_at.
+    # last_status_at cannot serve here — completion overwrites it, which would
+    # erase the only record of how long the print took.
+    printing_started_at = db.Column(db.DateTime, nullable=True)
     printed_at = db.Column(db.DateTime, nullable=True)
     last_status_at = db.Column(db.DateTime, default=utcnow)
     retry_count = db.Column(db.Integer, default=0)

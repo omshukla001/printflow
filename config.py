@@ -147,8 +147,21 @@ class Config:
     # Per-user concurrent active jobs cap
     USER_MAX_ACTIVE_JOBS = _env_int('USER_MAX_ACTIVE_JOBS', 10)
 
-    # Kiosk token TTL (seconds)
-    KIOSK_TOKEN_TTL = _env_int('KIOSK_TOKEN_TTL', 90)
+    # Kiosk token TTL (seconds). This has to cover a first-time customer being
+    # bounced to the login page and typing their password before the token they
+    # scanned dies, or they land on "QR code expired" having done nothing wrong.
+    KIOSK_TOKEN_TTL = _env_int('KIOSK_TOKEN_TTL', 300)
+
+    # Print time estimates. These are only the starting point — print_timing
+    # replaces them with the median of real completed jobs once there are
+    # PRINT_TIMING_MIN_SAMPLES of them, so the kiosk quotes this printer rather
+    # than a datasheet. Defaults are the Brother HL-L2400D's rated figures.
+    PRINT_SPEED_SIMPLEX_PPM = _env_int('PRINT_SPEED_SIMPLEX_PPM', 30)
+    PRINT_SPEED_DUPLEX_PPM = _env_int('PRINT_SPEED_DUPLEX_PPM', 15)
+    # Spooling, waking from sleep, and first page out. Dominates a 1-page job.
+    PRINT_JOB_OVERHEAD_SECONDS = _env_int('PRINT_JOB_OVERHEAD_SECONDS', 12)
+    PRINT_TIMING_SAMPLE_SIZE = _env_int('PRINT_TIMING_SAMPLE_SIZE', 50)
+    PRINT_TIMING_MIN_SAMPLES = _env_int('PRINT_TIMING_MIN_SAMPLES', 5)
 
     # Password resets. Email is optional: leave MAIL_HOST blank and the reset
     # code is issued by staff at the counter instead (admin -> Password resets),

@@ -432,7 +432,8 @@ function _updateCostNow() {
             document.getElementById('sheet-info').textContent =
                 sheets + ' sheet' + (sheets === 1 ? '' : 's') +
                 ' · ' + (d.effective_pages || 0) + ' page' + (d.effective_pages === 1 ? '' : 's') +
-                ' · ₹' + (d.rate || 0).toFixed(2) + '/sheet';
+                ' · ₹' + (d.rate || 0).toFixed(2) + '/sheet' +
+                (d.print_time_label ? ' · takes ' + d.print_time_label + ' to print' : '');
             document.getElementById('range-error').textContent = d.range_error || '';
         })
         .catch(() => {});

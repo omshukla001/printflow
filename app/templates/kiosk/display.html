@@ -302,6 +302,23 @@
         .scan-overlay .scan-info { font-size: 24px; color: #94a3b8; }
         .scan-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
 
+        /* How long a page takes — sets expectations before anyone scans */
+        .timing-hint {
+            font-size: 17px;
+            color: #94a3b8;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        .timing-hint .t-val { color: #e2e8f0; font-weight: 600; }
+
+        /* Remaining time on the job printing now. Tabular figures stop the
+           banner shuffling sideways as the digits tick down. */
+        .printing-banner .countdown {
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
         /* Printing banner */
         .printing-banner {
             display: none;
@@ -389,6 +406,7 @@
             <div class="kiosk-instruction">
                 Open your <span class="highlight">phone camera</span> and scan
             </div>
+            <div class="timing-hint" id="timing-hint"></div>
             <div class="queue-badge no-jobs" id="queue-badge">No jobs in queue</div>
         </div>
         <div class="kiosk-right" id="kiosk-right">
@@ -475,6 +493,7 @@
         const scanInfo = document.getElementById('scan-info');
         const lockBanner = document.getElementById('lock-banner');
         const printingBanner = document.getElementById('printing-banner');
+        const timingHint = document.getElementById('timing-hint');
         const queueBadge = document.getElementById('queue-badge');
         const adSlidesContainer = document.getElementById('ad-slides-container');
         const slideDots = document.getElementById('slide-dots');
@@ -671,9 +690,10 @@
             startSlideshow();
         }
 
-        function updateQueueBadge(count) {
+        function updateQueueBadge(count, waitLabel) {
             if (count > 0) {
-                queueBadge.textContent = count + ' job' + (count !== 1 ? 's' : '') + ' in queue';
+                queueBadge.textContent = count + ' job' + (count !== 1 ? 's' : '') + ' in queue'
+                    + (waitLabel ? ' · ' + waitLabel + ' wait' : '');
                 queueBadge.className = 'queue-badge has-jobs';
             } else {
                 queueBadge.textContent = 'No jobs in queue';
@@ -681,15 +701,42 @@
             }
         }
 
-        function updatePrintingBanner(printing) {
-            if (!printing || printing.length === 0) {
+        function updateTimingHint(timing) {
+            if (!timing) return;
+            timingHint.innerHTML = '';
+            function part(before, value) {
+                timingHint.appendChild(document.createTextNode(before));
+                var s = document.createElement('span');
+                s.className = 't-val';
+                s.textContent = value;
+                timingHint.appendChild(s);
+            }
+            part('1 page ', timing.single_page_one_sided);
+            part(' · 2 pages on one sheet ', timing.two_page_two_sided);
+            part(' · 10 pages ', timing.ten_page_one_sided);
+        }
+
+        // Remaining seconds on whatever is printing. Held locally and ticked
+        // down every second: the poll is the source of truth, but re-reading it
+        // on every response would make the number stutter, and a slow response
+        // would make it jump backwards.
+        var countdown = null;
+        var currentPrinting = [];
+
+        function formatClock(sec) {
+            sec = Math.max(0, Math.round(sec));
+            var m = Math.floor(sec / 60), s = sec % 60;
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        function renderPrintingBanner() {
+            if (!currentPrinting.length) {
                 printingBanner.classList.remove('show');
                 return;
             }
-            // Get unique user names
             var names = [];
             var seen = {};
-            printing.forEach(function(j) {
+            currentPrinting.forEach(function(j) {
                 if (!seen[j.user]) { names.push(j.user); seen[j.user] = true; }
             });
             // Names come from user-chosen full_name, so they are inserted as
@@ -698,8 +745,48 @@
             printingBanner.innerHTML = '<span class="printing-dot"></span>';
             printingBanner.appendChild(
                 document.createTextNode(' Printing for ' + names.join(', ')));
+            if (countdown !== null) {
+                var span = document.createElement('span');
+                span.className = 'countdown';
+                // Once the estimate runs out the job is not late, the estimate
+                // was. Saying "finishing up" beats a stuck 0:00.
+                span.textContent = countdown > 0
+                    ? ' — about ' + formatClock(countdown) + ' left'
+                    : ' — finishing up…';
+                printingBanner.appendChild(span);
+            }
             printingBanner.classList.add('show');
         }
+
+        function updatePrintingBanner(printing) {
+            currentPrinting = printing || [];
+            if (!currentPrinting.length) {
+                countdown = null;
+                renderPrintingBanner();
+                return;
+            }
+            // Several jobs can be in flight; the screen should show when the
+            // whole batch is done, so take the longest.
+            var server = 0;
+            currentPrinting.forEach(function(j) {
+                if (typeof j.remaining_seconds === 'number' && j.remaining_seconds > server) {
+                    server = j.remaining_seconds;
+                }
+            });
+            // Only resync on real drift, otherwise the local tick and the poll
+            // fight each other and the last digit jitters.
+            if (countdown === null || Math.abs(server - countdown) > 3) {
+                countdown = server;
+            }
+            renderPrintingBanner();
+        }
+
+        setInterval(function() {
+            if (countdown !== null && countdown > 0) {
+                countdown -= 1;
+                renderPrintingBanner();
+            }
+        }, 1000);
 
         function pollStatus() {
             if (!polling) return;
@@ -709,8 +796,9 @@
                     if (data.print_locked) lockBanner.classList.add('show');
                     else lockBanner.classList.remove('show');
 
-                    updateQueueBadge(data.pending_count);
+                    updateQueueBadge(data.pending_count, data.queue_wait_label);
                     updatePrintingBanner(data.printing || []);
+                    updateTimingHint(data.timing);
                     updateAds(data.ads || []);
 
                     if (data.is_scanned) {

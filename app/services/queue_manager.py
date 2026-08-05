@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 
 from flask import current_app
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.extensions import db
 from app.models import PrintJob, PaymentLedger
@@ -184,6 +184,10 @@ def mark_printing(job, cups_job_id):
         'status': 'printing',
         'cups_job_id': cups_job_id,
         'last_status_at': now,
+        # COALESCE, not `now`: this transition is idempotent and the agent may
+        # report "printing" more than once. Overwriting would restart the
+        # customer's countdown every time it did.
+        'printing_started_at': func.coalesce(PrintJob.printing_started_at, now),
     }, synchronize_session=False)
     db.session.commit()
     return result == 1

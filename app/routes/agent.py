@@ -10,6 +10,7 @@ from app.services.queue_manager import (
     complete_job, fail_job, mark_printing, claim_pending_jobs, TERMINAL_STATES,
 )
 from app.services.print_options import to_dict as options_to_dict
+from app.services import print_timing
 
 agent_bp = Blueprint('agent', __name__)
 csrf.exempt(agent_bp)  # agent uses API key, not browser cookies
@@ -307,10 +308,10 @@ def kiosk_status():
 
     data = get_status()
     data['print_locked'] = _pl.is_enabled()
-    pending_count = PrintJob.query.filter(
+    pending_jobs = PrintJob.query.filter(
         PrintJob.status.in_(['queued', 'prioritized', 'ready_to_print'])
-    ).count()
-    data['pending_count'] = pending_count
+    ).all()
+    data['pending_count'] = len(pending_jobs)
 
     printing_jobs = PrintJob.query.filter(PrintJob.status == 'printing').all()
     if printing_jobs:
@@ -319,9 +320,23 @@ def kiosk_status():
         data['printing'] = [{
             'user': users.get(j.user_id, 'Unknown'),
             'filename': j.filename,
+            'pages': print_timing.impressions(j),
+            'sides': j.sides or 'one-sided',
+            # The display counts down locally from this rather than polling for
+            # it, so a slow poll cannot make the number jump backwards.
+            'remaining_seconds': round(print_timing.remaining_seconds(j)),
+            'total_seconds': round(print_timing.estimate_seconds(j)),
         } for j in printing_jobs]
     else:
         data['printing'] = []
+
+    # Everything queued behind what is printing now — what a customer walking
+    # up to the kiosk actually has to wait.
+    wait = (print_timing.queue_seconds(pending_jobs)
+            + sum(print_timing.remaining_seconds(j) for j in printing_jobs))
+    data['queue_wait_seconds'] = round(wait)
+    data['queue_wait_label'] = print_timing.format_duration(wait) if wait else None
+    data['timing'] = print_timing.per_page_summary()
 
     ads = Advertisement.query.filter_by(is_active=True).order_by(
         Advertisement.display_order.asc(), Advertisement.created_at.desc()).all()
